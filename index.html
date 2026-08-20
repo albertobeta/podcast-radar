@@ -50,6 +50,12 @@
   }
   button.primary:active { filter: brightness(1.15); }
   button.primary[disabled] { opacity: 0.6; }
+  /* Field reports say the CTA wasn't obviously tappable: breathe until the
+     first location attempt, then stay quiet. */
+  @keyframes cta-breathe { 0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.45); } 50% { box-shadow: 0 0 0 10px rgba(124, 92, 255, 0); } }
+  button.primary.attention { animation: cta-breathe 2.2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { button.primary.attention { animation: none; } }
+  .cta-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
 
   .radius-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
   .radius-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
@@ -223,7 +229,8 @@
   <div class="view-toggle primary"><span class="v active" data-v="list">Near me</span><span class="v" data-v="globe">Globe</span></div>
 
   <div class="card">
-    <button class="primary" id="locate-btn">📍 Find podcasts near me</button>
+    <button class="primary attention" id="locate-btn">📍 Find podcasts near me</button>
+    <div class="cta-hint" id="cta-hint">Tap to search around you</div>
 
     <div class="radius-row">
       <label for="radius">Radius</label>
@@ -240,10 +247,11 @@
     <div class="chips-note" id="chips-note">Creator vs subject filter will activate once the dataset includes the tag's <code>rel</code> attribute.</div>
 
     <div class="manual" id="manual">
+      <div class="hint">Allowing location access in your browser skips typing coordinates · either way, your location never leaves your device.</div>
       <!-- No inputmode="decimal": the iOS decimal pad has no minus sign, no
            comma, and no Return key, which makes coordinates untypable. -->
-      <input type="text" id="manual-input" placeholder="Or type coordinates: 41.9028, 12.4964" enterkeyhint="go" />
-      <div class="hint">Paste "lat, lon" (e.g. from any maps app) and press Enter.</div>
+      <input type="text" id="manual-input" placeholder="Or paste coordinates: 41.9028, 12.4964" enterkeyhint="go" />
+      <div class="hint">Any common format works · 41.9028, 12.4964 or 34.0989° N, 118.3278° W.</div>
     </div>
 
     <div id="status"></div>
@@ -569,12 +577,15 @@ function escapeHTML(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp
 // ----- Location acquisition ----------------------------------------------
 function setCenter(lat, lon, label) {
   center = { lat, lon };
+  $("locate-btn").classList.remove("attention");
+  $("cta-hint").hidden = true;
   shown = RESULT_PAGE;
   setStatus(label || `Centered on ${lat.toFixed(3)}, ${lon.toFixed(3)}`);
   runSearch();
 }
 
 $("locate-btn").addEventListener("click", () => {
+  $("locate-btn").classList.remove("attention"); // the CTA taught its lesson
   // Geolocation only exists in secure contexts; without this check an HTTP
   // LAN test would misreport the failure as "permission denied".
   if (!window.isSecureContext) { geoFailed("Geolocation needs HTTPS."); return; }
@@ -595,10 +606,27 @@ function geoFailed(msg) {
   $("manual-input").focus();
 }
 
+// The manual input gets pasted from anywhere (Maps apps, Wikipedia, GPS
+// tools), so accept degree symbols, hemisphere letters and surrounding words:
+// "34.0989° N latitude, 118.3278° W longitude." must parse. Hemisphere
+// letters both orient the sign (S/W negative) and fix the order when
+// longitude comes first. parseLatLon stays strict for dataset rows.
+function parseManualCoords(v) {
+  const tokens = [...String(v).matchAll(/(-?\d+(?:\.\d+)?)\s*°?\s*([NSEW])?/gi)]
+    .slice(0, 2)
+    .map(m => ({ val: parseFloat(m[1]), hemi: (m[2] || "").toUpperCase() }));
+  if (tokens.length < 2) return null;
+  const apply = t => t.hemi ? Math.abs(t.val) * (t.hemi === "S" || t.hemi === "W" ? -1 : 1) : t.val;
+  const [a, b] = tokens;
+  const swapped = a.hemi === "E" || a.hemi === "W" || b.hemi === "N" || b.hemi === "S";
+  const lat = apply(swapped ? b : a), lon = apply(swapped ? a : b);
+  return validCoords(lat, lon) ? { lat, lon } : null;
+}
+
 function submitManual() {
   const v = $("manual-input").value.trim();
   if (!v) return;
-  const c = parseLatLon(v);
+  const c = parseManualCoords(v);
   if (c) setCenter(c.lat, c.lon);
   else setStatus('Couldn\'t parse that. Use "lat, lon", e.g. 41.9028, 12.4964', true);
 }
