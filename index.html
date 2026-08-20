@@ -117,6 +117,11 @@
     background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
   }
 
+  details.about { margin-top: 28px; }
+  details.about summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  details.about p { font-size: 13px; line-height: 1.55; color: var(--text); margin: 10px 0 0; }
+  details.about a { color: var(--accent-2); text-decoration: none; }
+
   .data-section { margin-top: 28px; }
   #cache-status { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   #cache-status.fresh { color: #4ade80; }
@@ -175,6 +180,13 @@
   <div id="loader"><div class="spinner"></div><div id="loader-text">Loading dataset…</div></div>
 
   <div id="results"></div>
+
+  <details class="about">
+    <summary>About this app</summary>
+    <p><strong>Your location never leaves your device.</strong> This is a static web app with no backend: your browser reads your location (or the coordinates you type) and runs the whole search · distance maths, sorting, rendering · locally. No coordinates are sent to any server, and there are no cookies or tracking scripts.</p>
+    <p>Network traffic is one-way and minimal: the open <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">&lt;podcast:location&gt;</a> dataset is fetched from podcastindex.org and cached in your browser for 24 hours (see Data below), and cover images load directly from each podcast's own host.</p>
+    <p>A search is written into the page address so you can bookmark or share it · just know the link carries the coordinates you searched from.</p>
+  </details>
 
   <div class="data-section">
     <div class="result-head">Data</div>
