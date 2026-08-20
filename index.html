@@ -152,10 +152,11 @@
   .view-toggle .v { padding: 11px 16px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; user-select: none; touch-action: manipulation; }
   .view-toggle .v.active { background: var(--accent); color: #fff; }
 
-  #globe-wrap { display: none; position: fixed; inset: 0; z-index: 40; background: var(--bg); overscroll-behavior: none; }
+  #globe-wrap { display: none; position: fixed; inset: 0; z-index: 40; background: var(--bg); overscroll-behavior: none; touch-action: none; }
   body.globe-view #globe-wrap { display: block; }
   body.globe-view { overflow: hidden; }
-  #globe { position: absolute; inset: 0; }
+  #globe { position: absolute; inset: 0; touch-action: none; }
+  #globe canvas { touch-action: none; } /* three.js sets this inline too; keep it true even if the lib changes */
   .globe-top {
     /* Above the loader (z 4): the exit toggle must stay reachable while (or if forever) loading. */
     position: absolute; top: 0; left: 0; right: 0; z-index: 5;
@@ -1001,6 +1002,29 @@ function closeSheet() {
 // starting on these layers (the globe canvas implements its own pinch).
 for (const id of ["sheet", "globe-wrap"]) {
   $(id).addEventListener("gesturestart", e => e.preventDefault());
+}
+
+// If the page still gets pinch-zoomed (double-tap, accessibility zoom: iOS
+// ignores user-scalable), fixed elements stay pinned to the LAYOUT viewport
+// and drift offscreen. Counter-transform the globe chrome into the visual
+// viewport so the view switch and hint remain visible at any zoom.
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const pinGlobeChrome = () => {
+    const top = document.querySelector("#globe-wrap .globe-top");
+    const hint = $("globe-hint");
+    const zoomed = vv.scale !== 1 || vv.offsetLeft || vv.offsetTop;
+    if (!zoomed) { top.style.transform = hint.style.transform = ""; return; }
+    top.style.transformOrigin = "top left";
+    top.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop}px) scale(${1 / vv.scale})`;
+    // clientHeight is the layout viewport height, stable under pinch; the
+    // hint sits at the layout bottom and must move to the visual bottom.
+    const dy = vv.offsetTop + vv.height - document.documentElement.clientHeight;
+    hint.style.transformOrigin = "bottom left";
+    hint.style.transform = `translate(${vv.offsetLeft}px, ${dy}px) scale(${1 / vv.scale})`;
+  };
+  vv.addEventListener("resize", pinGlobeChrome);
+  vv.addEventListener("scroll", pinGlobeChrome);
 }
 $("sheet-close").addEventListener("click", closeSheet);
 $("sheet-backdrop").addEventListener("click", closeSheet);
