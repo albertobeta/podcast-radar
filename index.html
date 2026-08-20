@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Podcast Radar · Podcasts near you</title>
 <meta name="description" content="Find podcasts made near you or about places near you, using the Podcasting 2.0 <podcast:location> RSS tag. Runs locally in your browser." />
 <link rel="canonical" href="https://radar.rss.io/" />
@@ -26,6 +26,8 @@
     --creator: #22d3ee;
     --subject: #f472b6;
     --border: #2a2f3d;
+    --globe-point: #a78bfa; /* pins: accent lightened to read against the sphere */
+    --globe-sea: #10131c;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; }
@@ -34,7 +36,7 @@
   /* Mobile-first: single column, content max width only kicks in on wide screens. */
   main { width: 100%; max-width: 640px; margin: 0 auto; padding: 16px 16px 40px; flex: 1; }
 
-  header.app { padding: 20px 16px 0; max-width: 640px; margin: 0 auto; width: 100%; }
+  header.app { padding: calc(20px + env(safe-area-inset-top)) 16px 0; max-width: 640px; margin: 0 auto; width: 100%; }
   h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
   h1 img { width: 28px; height: 28px; }
   .subtitle { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
@@ -51,7 +53,7 @@
 
   .radius-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
   .radius-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
-  .radius-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .radius-row input[type=range] { flex: 1; min-width: 60px; accent-color: var(--accent); } /* min-width beats the ~130px intrinsic size that overflowed 375px screens in mi mode */
   .radius-row .km { font-size: 13px; font-weight: 600; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
   .unit-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
   .unit-toggle .u { padding: 5px 9px; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; user-select: none; }
@@ -138,8 +140,71 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   #loader-text { color: var(--muted); font-size: 13px; }
 
-  footer { padding: 16px; text-align: center; font-size: 11px; color: var(--muted); }
+  footer { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); text-align: center; font-size: 11px; color: var(--muted); }
   footer a { color: var(--accent-2); text-decoration: none; }
+
+  /* Globe view. The overlay is a fixed full-bleed layer above the page; no
+     backdrop-filter anywhere near it (per-frame GPU tax on iOS over WebGL). */
+  .view-toggle { display: flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; flex-shrink: 0; background: var(--panel); }
+  /* The mode switch is the app's most important control: full width, above the search card. */
+  .view-toggle.primary { width: 100%; margin-top: 16px; }
+  .view-toggle.primary .v { flex: 1; text-align: center; padding: 13px; font-size: 14px; }
+  .view-toggle .v { padding: 11px 16px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; user-select: none; touch-action: manipulation; }
+  .view-toggle .v.active { background: var(--accent); color: #fff; }
+
+  #globe-wrap { display: none; position: fixed; inset: 0; z-index: 40; background: var(--bg); overscroll-behavior: none; }
+  body.globe-view #globe-wrap { display: block; }
+  body.globe-view { overflow: hidden; }
+  #globe { position: absolute; inset: 0; }
+  .globe-top {
+    /* Above the loader (z 4): the exit toggle must stay reachable while (or if forever) loading. */
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: calc(10px + env(safe-area-inset-top)) 14px 0; pointer-events: none;
+  }
+  .globe-top > * { pointer-events: auto; }
+  .globe-brand { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+  .globe-brand img { width: 22px; height: 22px; }
+  .globe-hint {
+    position: absolute; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 3;
+    text-align: center; font-size: 11px; color: var(--muted); pointer-events: none;
+  }
+  #globe-loader {
+    display: none; position: absolute; inset: 0; z-index: 4;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: var(--bg); color: var(--muted); font-size: 13px;
+  }
+  #globe-loader.visible { display: flex; }
+
+  .globe-cover { position: relative; width: 52px; height: 52px; transform: translate(-50%, -50%); cursor: pointer; pointer-events: none; }
+  .globe-cover .art {
+    position: absolute; inset: 0; border-radius: 10px; overflow: hidden;
+    border: 1px solid var(--border); background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  }
+  .globe-cover canvas { width: 100%; height: 100%; display: block; }
+  .globe-count {
+    position: absolute; top: -7px; right: -7px; z-index: 1; min-width: 18px; text-align: center;
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 999px; padding: 2px 5px; border: 2px solid var(--bg);
+  }
+
+  /* Bottom sheet: a tapped place's podcasts, reusing the list rows */
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-width: 640px; margin: 0 auto;
+    background: var(--panel); border: 1px solid var(--border); border-bottom: none; border-radius: 16px 16px 0 0;
+    max-height: 70vh; display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateY(105%); transition: transform 0.28s ease;
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
+  .sheet-title { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-close { width: 40px; height: 40px; flex-shrink: 0; touch-action: manipulation; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; color: var(--text); font-size: 13px; cursor: pointer; }
+  .sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px 16px; }
+  .sheet-more { font-size: 12px; color: var(--muted); text-align: center; padding: 8px 0 2px; }
+  #sheet-backdrop { display: none; position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, 0.45); }
+  body.sheet-open #sheet-backdrop { display: block; }
 </style>
 </head>
 <body>
@@ -150,6 +215,8 @@
 </header>
 
 <main>
+  <div class="view-toggle primary"><span class="v active" data-v="list">Near me</span><span class="v" data-v="globe">Globe</span></div>
+
   <div class="card">
     <button class="primary" id="locate-btn">📍 Find podcasts near me</button>
 
@@ -184,7 +251,7 @@
   <details class="about">
     <summary>About this app</summary>
     <p><strong>Your location never leaves your device.</strong> This is a static web app with no backend: your browser reads your location (or the coordinates you type) and runs the whole search · distance maths, sorting, rendering · locally. No coordinates are sent to any server, and there are no cookies or tracking scripts.</p>
-    <p>Network traffic is one-way and minimal: the open <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">&lt;podcast:location&gt;</a> dataset is fetched from podcastindex.org and cached in your browser for 24 hours (see Data below), and cover images load directly from each podcast's own host.</p>
+    <p>Network traffic is one-way and minimal: the open <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">&lt;podcast:location&gt;</a> dataset is fetched from podcastindex.org and cached in your browser for 24 hours (see Data below), and cover images load directly from each podcast's own host. The globe view's 3D library and map outlines are served from this same site, not a CDN.</p>
     <p>A search is written into the page address so you can bookmark or share it · just know the link carries the coordinates you searched from.</p>
   </details>
 
@@ -194,6 +261,25 @@
     <button class="refresh" id="refresh-btn">Force refresh</button>
   </div>
 </main>
+
+<div id="globe-wrap">
+  <div class="globe-top">
+    <div class="globe-brand"><img src="favicon.svg" alt="">Podcast Radar</div>
+    <div class="view-toggle"><span class="v" data-v="list">Near me</span><span class="v active" data-v="globe">Globe</span></div>
+  </div>
+  <div id="globe"></div>
+  <div class="globe-hint" id="globe-hint"></div>
+  <div id="globe-loader"><div class="spinner"></div><div>Loading the globe…</div></div>
+</div>
+
+<div id="sheet-backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-head">
+    <div class="sheet-title" id="sheet-title"></div>
+    <button class="sheet-close" id="sheet-close" aria-label="Close">✕</button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
+</div>
 
 <footer>
   <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">Data source</a>
@@ -244,6 +330,20 @@ const DEFAULT_COVER = "data:image/svg+xml;utf8," + encodeURIComponent(
 );
 
 const RESULT_PAGE = 100; // rows rendered per "Show more" press; keeps DOM and image decodes bounded on phones
+
+// Globe view. The library is vendored and self-hosted: the About section
+// promises traffic goes only to podcastindex.org and cover hosts, and a CDN
+// would break that promise. Lazy-loaded on first switch, so list users never
+// pay its weight.
+const GLOBE_LIB = "vendor/globe.gl.min.js";
+const COUNTRIES_LIB = "vendor/countries-110m.js"; // script, not fetched JSON: file:// pages can't fetch() local files
+const COVER_ALT = 0.5;               // POV altitude below which dots swap to cover art
+const COVER_MAX = 40;                // covers on screen at once; caps DOM nodes and decodes
+const THUMB_PX = 96;                 // covers rasterized once at this size; full-res decode memory is freed immediately
+const THUMB_CACHE_MAX = 2 * COVER_MAX + 100; // above the worst-case drawn set, so live thumbs never thrash
+const THUMB_INFLIGHT = 3;            // decode a few covers at a time, not 40 at once
+const THUMB_TIMEOUT_MS = 15000;      // a stalled host must not pin a loader slot forever
+const SHEET_MAX = 100;               // rows rendered in a place's bottom sheet
 
 // ----- IndexedDB (same pattern as Podroll Atlas) -------------------------
 function openDB() { return new Promise((res, rej) => { const r = indexedDB.open(DB_NAME, 1); r.onupgradeneeded = () => r.result.createObjectStore(STORE); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
@@ -356,6 +456,11 @@ let center = null;         // { lat, lon } once known
 let radiusIdx = 4;
 let relFilter = "all";
 let shown = RESULT_PAGE;   // rows currently rendered
+let view = "list";         // "list" | "globe"
+let listStale = false;     // a search ran while the globe was up; render on return
+let globe = null;          // globe.gl instance, created on the first Globe open
+let globeLoading = false;
+let clusters = [];         // one entry per unique place (osm id, else rounded coords)
 
 const $ = id => document.getElementById(id);
 function setStatus(msg, isError = false) { const el = $("status"); el.textContent = msg; el.className = isError ? "error" : ""; }
@@ -374,20 +479,24 @@ function runSearch() {
   // Sparse dataset: an empty radius is common, so always offer the nearest
   // few beyond it instead of a dead end.
   const beyond = within.length ? [] : scored.slice(0, 10);
-  renderResults(within, beyond);
-  // Hash radius stays in km regardless of display unit, so shared links mean
-  // the same thing for every recipient.
-  history.replaceState(null, "", `#${center.lat.toFixed(4)},${center.lon.toFixed(4)},${Math.round(radiusKm)}`);
+  // Behind the opaque globe overlay a list render is throwaway work; do it
+  // lazily when the user flips back.
+  if (view === "globe") listStale = true;
+  else { renderResults(within, beyond); listStale = false; }
+  updateHash();
+  syncGlobeCenter(); // keep the globe's search ring in step with the list
 }
 
-function rowHTML(s, i) {
+function rowHTML(s, i, prefix = "") {
   const { p, d } = s;
-  const dist = fmtDist(d);
+  const dist = d == null ? "" : fmtDist(d); // sheet rows have no distance before a search
   const relBadge = p.rel ? `<span class="badge ${p.rel}">${p.rel === "creator" ? "made here" : "about here"}</span>` : "";
   const mediumBadge = p.medium && p.medium !== "podcast" ? `<span class="badge medium">${escapeHTML(p.medium)}</span>` : "";
-  // Details are keyed by render index, not feedId: the normalizer can emit
-  // several places for one feed, and ids must stay unique.
-  return `<div class="row" data-detail="${i}">
+  // Details are keyed by render index (prefixed per container), not feedId:
+  // the normalizer can emit several places for one feed, and ids must stay
+  // unique across the list and the globe's bottom sheet.
+  const key = `${prefix}${i}`;
+  return `<div class="row" data-detail="${key}">
     <img class="cover" src="${escapeHTML(p.image || DEFAULT_COVER)}" alt="" loading="lazy" decoding="async" width="56" height="56" data-fallback>
     <div class="info">
       <div class="title">${escapeHTML(p.title)}${relBadge}${mediumBadge}</div>
@@ -395,7 +504,7 @@ function rowHTML(s, i) {
     </div>
     <div class="dist${s.far ? " far" : ""}">${dist}</div>
   </div>
-  <div class="row-detail" id="detail-${i}">
+  <div class="row-detail" id="detail-${key}">
     <div class="links">
       ${p.url ? `<a href="${escapeHTML(p.url)}" target="_blank" rel="noopener">RSS feed</a>` : ""}
       <a href="https://podcastindex.org/podcast/${p.feedId}" target="_blank" rel="noopener">Podcast Index</a>
@@ -420,26 +529,33 @@ function renderResults(within, beyond) {
   let html = "";
   if (within.length) {
     html += `<div class="result-head">${within.length} podcast${within.length === 1 ? "" : "s"} within ${radiusText}</div>`;
-    html += within.slice(0, shown).map(rowHTML).join("");
+    html += within.slice(0, shown).map((s, i) => rowHTML(s, i)).join("");
     if (within.length > shown) html += `<button class="more" id="more-btn">Show more (${within.length - shown} left)</button>`;
   } else {
     html += `<div class="result-head">Nothing within ${radiusText} · nearest podcasts</div>`;
     html += beyond.map((s, i) => rowHTML({ ...s, far: true }, i)).join("");
   }
   box.innerHTML = html;
+  bindRows(box);
+  const more = $("more-btn");
+  if (more) more.onclick = () => { shown += RESULT_PAGE; renderResults(within, beyond); };
+}
 
+// Row behavior (cover fallback, tap to expand links) shared by the results
+// list and the globe's bottom sheet. Scoped to the container so ids from the
+// two never cross.
+function bindRows(box) {
   box.querySelectorAll("img[data-fallback]").forEach(el => { el.onerror = () => { el.onerror = null; el.src = DEFAULT_COVER; }; });
   box.querySelectorAll(".row").forEach(el => {
     el.onclick = () => {
-      const detail = $(`detail-${el.dataset.detail}`);
+      const detail = box.querySelector(`#detail-${el.dataset.detail}`);
+      if (!detail) return;
       const wasOpen = detail.classList.contains("visible");
       box.querySelectorAll(".row-detail.visible").forEach(d => d.classList.remove("visible"));
       box.querySelectorAll(".row.expanded").forEach(r => r.classList.remove("expanded"));
       if (!wasOpen) { detail.classList.add("visible"); el.classList.add("expanded"); }
     };
   });
-  const more = $("more-btn");
-  if (more) more.onclick = () => { shown += RESULT_PAGE; renderResults(within, beyond); };
 }
 
 function escapeHTML(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -516,14 +632,382 @@ $("rel-chips").addEventListener("click", e => {
 });
 
 // Deep link: #lat,lon,km pre-centers the search (also handy for testing).
+// A trailing ",globe" flag deep-links the globe view; "#globe" alone opens
+// the globe with no search center.
 function parseHash() {
-  const m = location.hash.match(/^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+))?$/);
+  if (location.hash === "#globe") return { lat: null, lon: null, km: null, globe: true };
+  const m = location.hash.match(/^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+))?(?:,(globe))?$/);
   if (!m) return null;
   const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
   if (!validCoords(lat, lon)) return null;
   const km = m[3] ? parseInt(m[3], 10) : null;
-  return { lat, lon, km };
+  return { lat, lon, km, globe: !!m[4] };
 }
+
+// Hash radius stays in km regardless of display unit, so shared links mean
+// the same thing for every recipient.
+function updateHash() {
+  const flag = view === "globe" ? ",globe" : "";
+  if (center) history.replaceState(null, "", `#${center.lat.toFixed(4)},${center.lon.toFixed(4)},${Math.round(radiusKmAt(radiusIdx))}${flag}`);
+  else if (view === "globe") history.replaceState(null, "", "#globe");
+  else if (location.hash === "#globe") history.replaceState(null, "", location.pathname + location.search);
+}
+
+// ----- Globe view --------------------------------------------------------
+function setView(v) {
+  if (v === view) return;
+  view = v;
+  document.body.classList.toggle("globe-view", view === "globe");
+  document.querySelectorAll(".view-toggle .v").forEach(el => el.classList.toggle("active", el.dataset.v === view));
+  if (view === "globe") {
+    openGlobe();
+  } else {
+    closeSheet();
+    if (globe) globe.pauseAnimation(); // no WebGL frames behind the list
+    if (listStale) runSearch();
+  }
+  updateHash();
+}
+document.querySelectorAll(".view-toggle").forEach(t => t.addEventListener("click", e => {
+  const v = e.target.closest(".v");
+  if (v) setView(v.dataset.v);
+}));
+
+// Script-tag loading (not fetch) on purpose: the README promises index.html
+// works opened straight from disk, and file:// origins block fetch() of
+// local files while script tags load fine.
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const el = document.createElement("script");
+    el.src = src;
+    el.onload = res;
+    el.onerror = () => rej(new Error(`couldn't load ${src}`));
+    document.head.appendChild(el);
+  });
+}
+
+function openGlobe() {
+  if (globe) { globe.resumeAnimation(); refreshGlobeData(); return; }
+  if (globeLoading) return;
+  globeLoading = true;
+  $("globe-loader").classList.add("visible");
+  const lib = window.Globe ? Promise.resolve() : loadScript(GLOBE_LIB); // reuse after a failed init
+  lib.then(() => initGlobe()).catch(globeFailed);
+}
+
+function globeFailed(e) {
+  console.error(e);
+  globeLoading = false;
+  $("globe-loader").classList.remove("visible");
+  setView("list");
+  setStatus("The globe view isn't available: " + e.message, true);
+}
+
+async function initGlobe() {
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  // Continents are decoration: if their file is missing the globe still works
+  // as a bare sphere with pins rather than bouncing back to the list.
+  if (!window.COUNTRIES_110M) {
+    try { await loadScript(COUNTRIES_LIB); } catch (e) { console.warn(e.message); }
+  }
+  const countries = window.COUNTRIES_110M || { features: [] };
+  buildClusters();
+  // Dotted-hex continents instead of an earth texture: on-palette, crisp on
+  // retina, and ~250KB of geometry instead of a megabyte of jpg.
+  globe = Globe()($("globe"))
+    .width(window.innerWidth).height(window.innerHeight)
+    .backgroundColor("#0b0d12")
+    .showAtmosphere(true).atmosphereColor("#7c5cff").atmosphereAltitude(0.18)
+    .hexPolygonsData(countries.features).hexPolygonResolution(3).hexPolygonMargin(0.62)
+    .hexPolygonColor(() => "rgba(139,147,167,0.35)")
+    .pointsMerge(false) // merged points lose per-point clicks; a few hundred is fine unmerged
+    .pointsData(clusters)
+    .pointLat(d => d.lat).pointLng(d => d.lng)
+    .pointAltitude(0.008)
+    // Coarse pointers get fatter pins: a fingertip needs more than a mouse.
+    .pointRadius(matchMedia("(pointer: coarse)").matches
+      ? d => Math.min(1.3, 0.4 + Math.sqrt(d.items.length) * 0.16)
+      : d => Math.min(0.9, 0.25 + Math.sqrt(d.items.length) * 0.12))
+    .pointColor(() => cssVar("--globe-point"))
+    .pointLabel(d => `<b>${escapeHTML(d.place)}</b> · ${d.items.length} podcast${d.items.length === 1 ? "" : "s"}`)
+    .onPointClick(openSheet)
+    .htmlLat(d => d.lat).htmlLng(d => d.lng).htmlAltitude(0.01)
+    .htmlElement(coverEl).htmlTransitionDuration(0)
+    .onZoom(scheduleLod)
+    .onGlobeClick(closeSheet);
+  globe.globeMaterial().color.set(cssVar("--globe-sea"));
+  // DPR capped at 2: a 3x-retina fullscreen WebGL buffer is an iOS memory tax
+  // with no visible payoff at these point sizes.
+  globe.renderer().setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  const controls = globe.controls();
+  const R = globe.getGlobeRadius();
+  controls.minDistance = R * 1.12;
+  controls.maxDistance = R * 5;
+  controls.autoRotate = !center; // a slow spin sells the globe until the user takes over
+  controls.autoRotateSpeed = 0.55;
+  controls.addEventListener("start", () => { controls.autoRotate = false; });
+  globe.pointOfView(center ? { lat: center.lat, lng: center.lon, altitude: 1.7 } : { lat: 25, lng: 10, altitude: 2.5 }, 0);
+  wireCoverTaps($("globe"));
+  window.addEventListener("resize", () => { if (globe) globe.width(window.innerWidth).height(window.innerHeight); });
+  globeLoading = false;
+  $("globe-loader").classList.remove("visible");
+  refreshGlobeData();
+  // The user may have left for the list while the script/geojson loaded;
+  // never leave WebGL rendering frames behind an opaque page.
+  if (view !== "globe") globe.pauseAnimation();
+}
+
+// Cluster before drawing: many feeds share identical city centroids from
+// autocomplete tooling, and the osm id is the canonical place identity (two
+// rows with the same osm id are the same place even when locale strings
+// differ, e.g. "Wien" vs "Vienna").
+let clustersFor = null;
+function buildClusters() {
+  if (clustersFor === PLACES) return; // PLACES is replaced wholesale on refresh
+  clustersFor = PLACES;
+  const byKey = new Map();
+  for (const p of PLACES) {
+    const key = p.osm ? `o:${p.osm}` : `c:${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
+    let c = byKey.get(key);
+    if (!c) { c = { lat: p.lat, lng: p.lon, place: p.place, items: [] }; byKey.set(key, c); }
+    c.items.push(p);
+  }
+  // Second pass: different osm ids can still share a centroid (city node vs
+  // region way). Covers drawn at the same spot stack and the top one swallows
+  // every tap, so merge by rounded coords; the sheet lists everything anyway.
+  const bySpot = new Map();
+  for (const c of byKey.values()) {
+    const spot = `${c.lat.toFixed(3)},${c.lng.toFixed(3)}`;
+    const m = bySpot.get(spot);
+    if (m) m.items.push(...c.items);
+    else bySpot.set(spot, c);
+  }
+  clusters = [...bySpot.values()];
+}
+
+function refreshGlobeData() {
+  if (!globe) return;
+  const before = clustersFor;
+  buildClusters();
+  if (before !== clustersFor) globe.pointsData(clusters).htmlElementsData([]);
+  syncGlobeCenter();
+  $("globe-hint").textContent = clusters.length
+    ? `${PLACES.length} located podcast${PLACES.length === 1 ? "" : "s"} in ${clusters.length} place${clusters.length === 1 ? "" : "s"} · tap a pin`
+    : "Waiting for the dataset…";
+  scheduleLod(globe.pointOfView());
+}
+
+// The searching-from-here marker plus a radar-style ping ring sweeping the
+// current radius. Degrees = km / 111.32 (mean km per degree of great circle).
+function syncGlobeCenter() {
+  if (!globe) return;
+  if (center) {
+    const deg = radiusKmAt(radiusIdx) / 111.32;
+    globe.ringsData([{ lat: center.lat, lng: center.lon }])
+      .ringColor(() => t => `rgba(34,211,238,${Math.max(0, 0.7 * (1 - t))})`)
+      .ringMaxRadius(deg)
+      .ringPropagationSpeed(Math.max(0.4, deg / 2.5)) // sweep the radius in ~2.5s
+      .ringRepeatPeriod(2500)
+      .labelsData([{ lat: center.lat, lng: center.lon }])
+      .labelText(() => "you are here")
+      .labelSize(0.85).labelDotRadius(0.35)
+      .labelColor(() => "#22d3ee").labelAltitude(0.012);
+  } else {
+    globe.ringsData([]).labelsData([]);
+  }
+}
+
+// LOD: dots from far out, cover art only near the ground and only for the
+// COVER_MAX clusters nearest the camera target. Bounded DOM nodes and image
+// decodes are what keep iOS Safari alive (see the Atlas lessons in CLAUDE.md).
+let lodTimer = 0, lastPov = null, lastLabelSize = -1;
+const elCache = new Set(); // clusters currently holding a built cover element
+function scheduleLod(pov) {
+  if (pov) lastPov = pov;
+  clearTimeout(lodTimer);
+  lodTimer = setTimeout(updateLod, 120);
+}
+function updateLod() {
+  if (!globe || !lastPov) return;
+  const { lat, lng, altitude } = lastPov;
+  // Label text is sized in world units and would fill the screen up close;
+  // near the ground the ring and dot mark the spot on their own.
+  const ls = altitude < 0.6 ? 0 : 0.85;
+  if (ls !== lastLabelSize) { lastLabelSize = ls; globe.labelSize(ls); }
+  if (altitude > COVER_ALT) { globe.htmlElementsData([]); shownCovers = []; return; }
+  const horizonKm = Math.max(300, altitude * 6371); // rough visible-patch radius
+  const vis = [];
+  for (const c of clusters) {
+    const d = haversineKm(lat, lng, c.lat, c.lng);
+    if (d < horizonKm) vis.push({ c, d });
+  }
+  vis.sort((a, b) => a.d - b.d);
+  shownCovers = vis.slice(0, COVER_MAX).map(v => v.c);
+  globe.htmlElementsData(shownCovers);
+  // Cover elements (each holding a ~37KB canvas) are cached per cluster for
+  // identity across LOD passes, but the cumulative set must stay bounded:
+  // panning a session across the world must not retain every city visited.
+  if (elCache.size > COVER_MAX * 3) {
+    const keep = new Set(shownCovers);
+    for (const c of elCache) if (!keep.has(c)) { delete c._el; elCache.delete(c); }
+  }
+}
+
+let shownCovers = []; // the clusters currently in htmlElementsData, for tap hit-testing
+
+function coverEl(c) {
+  if (c._el) return c._el; // keep element identity across LOD updates: no flicker, no re-decode
+  const el = document.createElement("div");
+  el.className = "globe-cover";
+  const art = document.createElement("div");
+  art.className = "art";
+  el.appendChild(art);
+  if (c.items.length > 1) {
+    const b = document.createElement("span");
+    b.className = "globe-count";
+    b.textContent = c.items.length > 99 ? "99+" : c.items.length;
+    el.appendChild(b);
+  }
+  elCache.add(c);
+  getThumb(c.items[0].image, thumb => {
+    if (!thumb) return; // broken/missing cover: the gradient placeholder stays
+    const copy = document.createElement("canvas"); // own copy: the cached canvas is shared and evictable
+    copy.width = copy.height = THUMB_PX;
+    copy.getContext("2d").drawImage(thumb, 0, 0);
+    art.textContent = "";
+    art.appendChild(copy);
+  });
+  c._el = el;
+  return el;
+}
+
+// Covers are pointer-events:none so a drag starting on one still rotates the
+// globe; taps are resolved here instead, in capture phase so a hit never
+// reaches the canvas (whose onGlobeClick would immediately close the sheet).
+let globeDownAt = null;
+function wireCoverTaps(wrap) {
+  wrap.addEventListener("pointerdown", ev => { globeDownAt = [ev.clientX, ev.clientY]; }, true);
+  wrap.addEventListener("click", ev => {
+    if (!globeDownAt || Math.hypot(ev.clientX - globeDownAt[0], ev.clientY - globeDownAt[1]) > 8) return; // that was a drag
+    for (const c of shownCovers) {
+      if (!c._el) continue;
+      const r = c._el.getBoundingClientRect();
+      if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+        ev.stopPropagation();
+        openSheet(c);
+        return;
+      }
+    }
+    // A clean tap on the globe that hit no cover dismisses the sheet. Not
+    // left to onGlobeClick: the hex-polygon layer intercepts the raycast
+    // over land, so that callback never fires where it is most needed.
+    closeSheet();
+  }, true);
+}
+
+// Same discipline as Atlas pumpImageQueue: decode a few covers at a time,
+// rasterize each once into a small canvas, drop the full-res Image (and its
+// ~36MB-per-3000px-cover decode) immediately. Cross-origin covers taint the
+// canvas, which is fine: it is only displayed in the DOM, never read back or
+// uploaded as a WebGL texture (tainted sources can't be).
+const thumbCache = new Map(); // url -> { thumb, broken, waiters }, insertion order doubles as LRU
+const thumbQueue = [];
+let thumbsInflight = 0;
+
+function getThumb(url, cb) {
+  if (!url) { cb(null); return; }
+  let e = thumbCache.get(url);
+  if (e) { thumbCache.delete(url); thumbCache.set(url, e); } // LRU touch
+  if (e && e.thumb) { cb(e.thumb); return; }
+  if (e && e.broken) { cb(null); return; }
+  if (!e) {
+    e = { thumb: null, broken: false, loading: false, waiters: [] };
+    thumbCache.set(url, e);
+    // Evict coldest settled entries; pending ones keep their waiters (evicting
+    // them would strand covers on the placeholder forever). On-screen covers
+    // hold their own canvas copies, so eviction never blanks a visible pin.
+    if (thumbCache.size > THUMB_CACHE_MAX) {
+      for (const [k, v] of thumbCache) {
+        if (thumbCache.size <= THUMB_CACHE_MAX) break;
+        if (k === url || v.loading || v.waiters.length) continue;
+        thumbCache.delete(k);
+      }
+    }
+    thumbQueue.push(url);
+  }
+  e.waiters.push(cb);
+  pumpThumbs();
+}
+
+function pumpThumbs() {
+  while (thumbsInflight < THUMB_INFLIGHT && thumbQueue.length) {
+    const url = thumbQueue.shift();
+    const e = thumbCache.get(url);
+    if (!e || e.thumb || e.broken || e.loading) continue; // evicted, settled, or already decoding
+    e.loading = true;
+    thumbsInflight++;
+    const img = new Image();
+    img.decoding = "async";
+    let settled = false;
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      thumbsInflight--;
+      e.loading = false;
+      if (ok) {
+        try {
+          const c = document.createElement("canvas");
+          c.width = c.height = THUMB_PX;
+          c.getContext("2d").drawImage(img, 0, 0, THUMB_PX, THUMB_PX);
+          e.thumb = c; // nothing references img past this line; its decode memory goes with it
+        } catch (err) { e.broken = true; }
+      } else e.broken = true;
+      e.waiters.splice(0).forEach(cb => cb(e.thumb));
+      pumpThumbs();
+    };
+    const timer = setTimeout(() => { img.src = ""; finish(false); }, THUMB_TIMEOUT_MS);
+    img.src = url;
+    img.decode().then(() => finish(true), () => finish(false));
+  }
+}
+
+// Bottom sheet: the tapped place's podcasts as ordinary list rows.
+function openSheet(cluster) {
+  if (!cluster || !cluster.items) return;
+  const items = cluster.items
+    .map(p => ({ p, d: center ? haversineKm(center.lat, center.lon, p.lat, p.lon) : null }))
+    .sort((a, b) => a.p.title.localeCompare(b.p.title));
+  $("sheet-title").textContent = `${cluster.place} · ${items.length} podcast${items.length === 1 ? "" : "s"}`;
+  const body = $("sheet-body");
+  let html = items.slice(0, SHEET_MAX).map((s, i) => rowHTML(s, i, "g")).join("");
+  if (items.length > SHEET_MAX) html += `<div class="sheet-more">Showing the first ${SHEET_MAX} of ${items.length} at this place</div>`;
+  body.innerHTML = html;
+  bindRows(body);
+  body.scrollTop = 0;
+  $("sheet").classList.add("open");
+  document.body.classList.add("sheet-open");
+}
+function closeSheet() {
+  $("sheet").classList.remove("open");
+  document.body.classList.remove("sheet-open");
+}
+$("sheet-close").addEventListener("click", closeSheet);
+$("sheet-backdrop").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (document.body.classList.contains("sheet-open")) closeSheet();
+  else if (view === "globe") setView("list");
+});
+document.addEventListener("visibilitychange", () => {
+  if (!globe) return;
+  if (document.hidden) { globe.pauseAnimation(); return; }
+  if (view !== "globe") return;
+  // A tab opened in the background reports a 0x0 viewport; fix the canvas
+  // up when the tab first becomes visible.
+  globe.width(window.innerWidth).height(window.innerHeight);
+  globe.resumeAnimation();
+});
 
 // ----- Boot --------------------------------------------------------------
 function applyData(rows) {
@@ -536,6 +1020,7 @@ function applyData(rows) {
     $("rel-chips").removeAttribute("title");
     $("chips-note").style.display = "none";
   }
+  if (globe) refreshGlobeData(); // Force refresh while the globe is up
 }
 
 $("refresh-btn").addEventListener("click", async () => {
@@ -564,7 +1049,10 @@ $("refresh-btn").addEventListener("click", async () => {
         for (let j = 1; j < UNIT_STOPS[unit].length; j++) if (Math.abs(radiusKmAt(j) - h.km) < Math.abs(radiusKmAt(i) - h.km)) i = j;
         radiusIdx = i; $("radius").value = i; $("radius-km").textContent = radiusLabel(i);
       }
-      setCenter(h.lat, h.lon, `Centered on ${h.lat.toFixed(3)}, ${h.lon.toFixed(3)} (from link)`);
+      // View before center: boot straight into the deep-linked view (no
+      // throwaway work), and let updateHash keep the globe flag.
+      if (h.globe) setView("globe");
+      if (h.lat != null) setCenter(h.lat, h.lon, `Centered on ${h.lat.toFixed(3)}, ${h.lon.toFixed(3)} (from link)`);
     } else if (center) {
       // The user may have tapped "near me" and been located while the
       // dataset was still downloading; run the search they asked for.

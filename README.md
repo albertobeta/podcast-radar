@@ -43,6 +43,7 @@ index.html                 The whole app.
 fallback-locations.json    Dataset snapshot, served if the live endpoint fails.
 404.html                   Real 404 page (also switches Cloudflare Pages out of SPA-fallback mode).
 favicon.svg                Radar logo.
+vendor/                    Self-hosted globe view assets (globe.gl + country outlines).
 README.md                  This file.
 ```
 
@@ -55,3 +56,4 @@ Released under [**Creative Commons Attribution 4.0 (CC BY 4.0)**](https://creati
 - Built by [**Alberto Betella**](https://betella.net). Disclosure: coded with heavy AI assistance. Architecture, design and decisions mine, most of the code AI-generated.
 - Data: [Podcast Index](https://podcastindex.org/) and every podcaster who wrote a `<podcast:location>` tag.
 - The `<podcast:location>` tag itself: [Podcasting 2.0 namespace](https://github.com/Podcastindex-org/podcast-namespace).
+- Globe view: [globe.gl](https://github.com/vasturiano/globe.gl) (MIT) by Vasco Asturiano, bundling [three.js](https://threejs.org/) (MIT) and [h3-js](https://github.com/uber/h3-js) (Apache 2.0), with country outlines from [Natural Earth](https://www.naturalearthdata.com/) (public domain). All self-hosted, no CDN.
