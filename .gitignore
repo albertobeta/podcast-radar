@@ -1,0 +1,6 @@
+# OS noise
+.DS_Store
+
+# Dataset snapshots are fetched at runtime; only the committed fallback ships.
+*.json
+!fallback-locations.json

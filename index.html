@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Podcast Radar · Podcasts near you</title>
+<meta name="description" content="Find podcasts made near you or about places near you, using the Podcasting 2.0 <podcast:location> RSS tag. Runs locally in your browser." />
+<link rel="canonical" href="https://radar.rss.io/" />
+<meta property="og:url" content="https://radar.rss.io/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Podcast Radar" />
+<meta property="og:title" content="Podcast Radar · Podcasts near you" />
+<meta property="og:description" content="Find podcasts made near you or about places near you." />
+<meta name="theme-color" content="#0b0d12" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d12;
+    --panel: #151821;
+    --panel-2: #1d212c;
+    --text: #e6e9ef;
+    --muted: #8b93a7;
+    --accent: #7c5cff;
+    --accent-2: #22d3ee;
+    --creator: #22d3ee;
+    --subject: #f472b6;
+    --border: #2a2f3d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Mobile-first: single column, content max width only kicks in on wide screens. */
+  main { width: 100%; max-width: 640px; margin: 0 auto; padding: 16px 16px 40px; flex: 1; }
+
+  header.app { padding: 20px 16px 0; max-width: 640px; margin: 0 auto; width: 100%; }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  h1 img { width: 28px; height: 28px; }
+  .subtitle { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 16px; }
+
+  button.primary {
+    width: 100%; padding: 14px; font-size: 16px; font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; border: none; border-radius: 10px; cursor: pointer;
+  }
+  button.primary:active { filter: brightness(1.15); }
+  button.primary[disabled] { opacity: 0.6; }
+
+  .radius-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .radius-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .radius-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .radius-row .km { font-size: 13px; font-weight: 600; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .unit-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+  .unit-toggle .u { padding: 5px 9px; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; user-select: none; }
+  .unit-toggle .u.active { background: var(--accent); color: #fff; }
+
+  .chips { display: flex; gap: 8px; margin-top: 14px; }
+  .chip {
+    flex: 1; text-align: center; padding: 8px 4px; font-size: 12px; font-weight: 600;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+    color: var(--muted); cursor: pointer; user-select: none;
+  }
+  .chip.active { color: #fff; border-color: var(--accent); background: rgba(124,92,255,0.25); }
+  .chip.creator.active { border-color: var(--creator); background: rgba(34,211,238,0.15); }
+  .chip.subject.active { border-color: var(--subject); background: rgba(244,114,182,0.15); }
+  .chips.disabled .chip { opacity: 0.4; cursor: not-allowed; }
+  .chips-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  .manual { margin-top: 12px; display: none; }
+  .manual.visible { display: block; }
+  .manual input {
+    /* 16px minimum: below that iOS Safari zooms the page on focus. */
+    width: 100%; padding: 12px; font-size: 16px; border-radius: 8px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text); outline: none;
+  }
+  .manual input:focus { border-color: var(--accent); }
+  .manual .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  #status { font-size: 13px; color: var(--muted); margin-top: 14px; min-height: 18px; }
+  #status.error { color: #fbbf24; }
+
+  /* Results list */
+  #results { margin-top: 8px; }
+  .result-head { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 20px 0 8px; }
+  .row {
+    display: flex; gap: 12px; align-items: center; padding: 10px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .row:active { background: var(--panel-2); }
+  .row img.cover { width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0; background: var(--panel-2); object-fit: cover; }
+  .row .info { flex: 1; min-width: 0; }
+  .row .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .place { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .row .dist { font-size: 13px; font-weight: 600; color: var(--accent-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row .dist.far { color: var(--muted); }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+  .badge.creator { background: rgba(34,211,238,0.15); color: var(--creator); }
+  .badge.subject { background: rgba(244,114,182,0.15); color: var(--subject); }
+  .badge.medium { background: rgba(124,92,255,0.2); color: var(--accent); }
+
+  /* Expanded row detail */
+  .row-detail { display: none; padding: 0 12px 12px; background: var(--panel); border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; margin: -9px 0 8px; }
+  .row-detail.visible { display: block; }
+  .row.expanded { border-radius: 10px 10px 0 0; margin-bottom: 0; }
+  .row-detail .links { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
+  .row-detail a {
+    font-size: 12px; font-weight: 600; color: var(--accent-2); text-decoration: none;
+    padding: 7px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+  }
+
+  button.more {
+    width: 100%; padding: 12px; margin-top: 4px; font-size: 13px;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  }
+
+  .data-section { margin-top: 28px; }
+  #cache-status { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  #cache-status.fresh { color: #4ade80; }
+  #cache-status.stale { color: #fbbf24; }
+  button.refresh {
+    padding: 9px 14px; font-size: 13px;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  }
+  button.refresh:active { background: var(--panel); }
+
+  #loader { display: none; text-align: center; padding: 30px 0; }
+  #loader.visible { display: block; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loader-text { color: var(--muted); font-size: 13px; }
+
+  footer { padding: 16px; text-align: center; font-size: 11px; color: var(--muted); }
+  footer a { color: var(--accent-2); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1><img src="favicon.svg" alt="">Podcast Radar</h1>
+  <p class="subtitle">Podcasts near you, via the Podcasting 2.0 <code>&lt;podcast:location&gt;</code> RSS tag.</p>
+</header>
+
+<main>
+  <div class="card">
+    <button class="primary" id="locate-btn">📍 Find podcasts near me</button>
+
+    <div class="radius-row">
+      <label for="radius">Radius</label>
+      <input type="range" id="radius" min="0" max="8" step="1" value="4" />
+      <span class="km" id="radius-km">250 km</span>
+      <div class="unit-toggle" id="unit-toggle"><span class="u active" data-u="km">km</span><span class="u" data-u="mi">mi</span></div>
+    </div>
+
+    <div class="chips disabled" id="rel-chips" title="The dataset doesn't carry the creator/subject distinction yet">
+      <div class="chip active" data-rel="all">All</div>
+      <div class="chip creator" data-rel="creator">Made here</div>
+      <div class="chip subject" data-rel="subject">About here</div>
+    </div>
+    <div class="chips-note" id="chips-note">Creator vs subject filter will activate once the dataset includes the tag's <code>rel</code> attribute.</div>
+
+    <div class="manual" id="manual">
+      <!-- No inputmode="decimal": the iOS decimal pad has no minus sign, no
+           comma, and no Return key, which makes coordinates untypable. -->
+      <input type="text" id="manual-input" placeholder="Or type coordinates: 41.9028, 12.4964" enterkeyhint="go" />
+      <div class="hint">Paste "lat, lon" (e.g. from any maps app) and press Enter.</div>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <div id="loader"><div class="spinner"></div><div id="loader-text">Loading dataset…</div></div>
+
+  <div id="results"></div>
+
+  <div class="data-section">
+    <div class="result-head">Data</div>
+    <div id="cache-status">Loading…</div>
+    <button class="refresh" id="refresh-btn">Force refresh</button>
+  </div>
+</main>
+
+<footer>
+  <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">Data source</a>
+  <span style="margin:0 4px">·</span>
+  <a href="https://github.com/albertobeta/podcast-radar" target="_blank" rel="noopener">GitHub repo</a>
+  <span style="margin:0 4px">·</span>
+  By AB at <a href="https://rss.com" target="_blank" rel="noopener">RSS.com</a>
+</footer>
+
+<script>
+"use strict";
+
+const REMOTE_URL = "https://public.podcastindex.org/locations.json";
+const LOCAL_FALLBACK = "fallback-locations.json"; // optional snapshot committed to the repo
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const DB_NAME = "podcast-radar-cache";
+const STORE = "data";
+const KEY = "locations";
+
+// Radius slider stops, round numbers in each display unit (index 4 is the
+// default: 250 km / 150 mi, generous because the dataset is still sparse).
+// The search itself always works in km; miles are a display/input skin.
+const MI_KM = 1.60934;
+const UNIT_STOPS = {
+  km: [10, 25, 50, 100, 250, 500, 1000, 2000, 3000],
+  mi: [5, 15, 30, 60, 150, 300, 600, 1200, 2000]
+};
+// Regions that use miles for road distance.
+const MILE_REGIONS = new Set(["US", "GB", "LR", "MM"]);
+function detectUnit() {
+  try { const saved = localStorage.getItem("radar-unit"); if (saved === "km" || saved === "mi") return saved; } catch (e) {}
+  for (const l of (navigator.languages || [navigator.language || ""])) {
+    const m = String(l).match(/[-_]([A-Za-z]{2})\b/);
+    if (m) return MILE_REGIONS.has(m[1].toUpperCase()) ? "mi" : "km";
+  }
+  return "km";
+}
+let unit = detectUnit();
+function radiusKmAt(i) { const v = UNIT_STOPS[unit][i]; return unit === "mi" ? v * MI_KM : v; }
+function radiusLabel(i) { return `${UNIT_STOPS[unit][i]} ${unit}`; }
+function fmtDist(dKm) { const d = unit === "mi" ? dKm / MI_KM : dKm; return `${d < 10 ? d.toFixed(1) : Math.round(d)} ${unit}`; }
+
+const DEFAULT_COVER = "data:image/svg+xml;utf8," + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs>
+    <rect width="200" height="200" rx="18" fill="url(#g)"/>
+  </svg>`
+);
+
+const RESULT_PAGE = 100; // rows rendered per "Show more" press; keeps DOM and image decodes bounded on phones
+
+// ----- IndexedDB (same pattern as Podroll Atlas) -------------------------
+function openDB() { return new Promise((res, rej) => { const r = indexedDB.open(DB_NAME, 1); r.onupgradeneeded = () => r.result.createObjectStore(STORE); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbGet(k) { const db = await openDB(); return new Promise((res, rej) => { const r = db.transaction(STORE).objectStore(STORE).get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbSet(k, v) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  // Cloudflare Pages answers 200 + index.html for missing paths (SPA fallback)
+  // unless a 404.html exists; fail fast rather than parse our own markup.
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("text/html")) throw new Error("got HTML, not JSON");
+  return await res.json();
+}
+
+async function loadData(force = false) {
+  if (!force) {
+    try { const c = await idbGet(KEY); if (c && Date.now() - c.ts < CACHE_TTL_MS) { updateCacheStatus(c.ts); return c.data; } } catch (e) {}
+  }
+  let data;
+  try { data = await fetchJSON(REMOTE_URL); }
+  catch (e) { try { data = await fetchJSON(LOCAL_FALLBACK); } catch (e2) { const c = await idbGet(KEY); if (c) { updateCacheStatus(c.ts, true); return c.data; } throw e2; } }
+  const ts = Date.now(); try { await idbSet(KEY, { ts, data }); } catch (e) {}
+  updateCacheStatus(ts);
+  return data;
+}
+
+function updateCacheStatus(ts, stale = false) {
+  const el = $("cache-status");
+  const age = Date.now() - ts;
+  const hrs = Math.floor(age / 3600000), mins = Math.floor((age % 3600000) / 60000);
+  el.textContent = (stale ? "Using stale local cache (" : "Cached locally ") + (hrs > 0 ? `${hrs}h ${mins}m ago` : `${mins}m ago`) + (stale ? ")" : "");
+  el.className = stale ? "stale" : "fresh";
+}
+
+// ----- Normalization -----------------------------------------------------
+// The dataset is young and its shape may evolve. Today (2026) each row is
+// flat: { feedId, podcastGuid, medium, title, url, image, locale, osm, latlon }
+// with latlon as a "lat,lon" string (sometimes "lat, lon", "lat lon", or an
+// actual [lat, lon] array) and no rel attribute. The proposed future shape is
+// a locations[] array with { rel, name, geo, osm, country } per entry. This
+// normalizer accepts both and returns one entry per (feed, place).
+
+function parseLatLon(v) {
+  if (v == null) return null;
+  if (Array.isArray(v) && v.length >= 2) {
+    const lat = parseFloat(v[0]), lon = parseFloat(v[1]);
+    return validCoords(lat, lon) ? { lat, lon } : null;
+  }
+  const s = String(v).trim().replace(/^geo:/i, "");
+  const m = s.match(/^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+  return validCoords(lat, lon) ? { lat, lon } : null;
+}
+function validCoords(lat, lon) {
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && !(lat === 0 && lon === 0);
+}
+
+function normalize(rows) {
+  const places = [];
+  let total = 0, withCoords = 0, relSeen = false;
+  // Third-party data that regenerates server-side: sanitize at the source so
+  // downstream interpolation (ids, badges, hrefs) can trust these values.
+  const relOf = v => (v === "creator" || v === "subject") ? v : null;
+  for (const r of rows) {
+    if (!r) continue;
+    const fid = Number(r.feedId);
+    if (!Number.isFinite(fid)) continue;
+    total++;
+    const base = {
+      feedId: fid,
+      guid: r.podcastGuid || null,
+      title: r.title || `Feed #${fid}`,
+      url: (typeof r.url === "string" && /^https?:\/\//i.test(r.url)) ? r.url : null,
+      image: r.image || null,
+      medium: r.medium || null
+    };
+    // Future shape: locations[] array with per-entry rel/geo/name. rel stays
+    // null when absent in either shape: while the dataset carries no rel at
+    // all, defaulting to "subject" would make the filter chips lie.
+    const locs = Array.isArray(r.locations) && r.locations.length
+      ? r.locations.map(l => ({ name: l.name, coords: parseLatLon(l.geo ?? l.latlon), osm: l.osm || null, rel: relOf(l.rel), country: l.country || null }))
+      : [{ name: r.locale, coords: parseLatLon(r.latlon), osm: r.osm || null, rel: relOf(r.rel), country: r.country || null }];
+    let counted = false;
+    for (const l of locs) {
+      if (!l.coords) continue; // name-only rows can't be placed on a map or ranked by distance
+      if (l.rel) relSeen = true;
+      if (!counted) { withCoords++; counted = true; }
+      places.push({ ...base, place: (l.name || "").trim() || "Unknown place", lat: l.coords.lat, lon: l.coords.lon, osm: l.osm, rel: l.rel, country: l.country });
+    }
+  }
+  return { places, total, withCoords, relSeen };
+}
+
+// ----- Distance ----------------------------------------------------------
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(Math.min(1, a))); // clamp: FP error can push a past 1 near antipodes -> NaN
+
+}
+
+// ----- State -------------------------------------------------------------
+let PLACES = [];
+let STATS = { total: 0, withCoords: 0, relSeen: false };
+let center = null;         // { lat, lon } once known
+let radiusIdx = 4;
+let relFilter = "all";
+let shown = RESULT_PAGE;   // rows currently rendered
+
+const $ = id => document.getElementById(id);
+function setStatus(msg, isError = false) { const el = $("status"); el.textContent = msg; el.className = isError ? "error" : ""; }
+
+// ----- Search + render ---------------------------------------------------
+function runSearch() {
+  if (!center || !PLACES.length) return;
+  const radiusKm = radiusKmAt(radiusIdx);
+  const scored = [];
+  for (const p of PLACES) {
+    if (relFilter !== "all" && p.rel !== relFilter) continue;
+    scored.push({ p, d: haversineKm(center.lat, center.lon, p.lat, p.lon) });
+  }
+  scored.sort((a, b) => a.d - b.d);
+  const within = scored.filter(s => s.d <= radiusKm);
+  // Sparse dataset: an empty radius is common, so always offer the nearest
+  // few beyond it instead of a dead end.
+  const beyond = within.length ? [] : scored.slice(0, 10);
+  renderResults(within, beyond);
+  // Hash radius stays in km regardless of display unit, so shared links mean
+  // the same thing for every recipient.
+  history.replaceState(null, "", `#${center.lat.toFixed(4)},${center.lon.toFixed(4)},${Math.round(radiusKm)}`);
+}
+
+function rowHTML(s, i) {
+  const { p, d } = s;
+  const dist = fmtDist(d);
+  const relBadge = p.rel ? `<span class="badge ${p.rel}">${p.rel === "creator" ? "made here" : "about here"}</span>` : "";
+  const mediumBadge = p.medium && p.medium !== "podcast" ? `<span class="badge medium">${escapeHTML(p.medium)}</span>` : "";
+  // Details are keyed by render index, not feedId: the normalizer can emit
+  // several places for one feed, and ids must stay unique.
+  return `<div class="row" data-detail="${i}">
+    <img class="cover" src="${escapeHTML(p.image || DEFAULT_COVER)}" alt="" loading="lazy" decoding="async" width="56" height="56" data-fallback>
+    <div class="info">
+      <div class="title">${escapeHTML(p.title)}${relBadge}${mediumBadge}</div>
+      <div class="place">${escapeHTML(p.place)}</div>
+    </div>
+    <div class="dist${s.far ? " far" : ""}">${dist}</div>
+  </div>
+  <div class="row-detail" id="detail-${i}">
+    <div class="links">
+      ${p.url ? `<a href="${escapeHTML(p.url)}" target="_blank" rel="noopener">RSS feed</a>` : ""}
+      <a href="https://podcastindex.org/podcast/${p.feedId}" target="_blank" rel="noopener">Podcast Index</a>
+      <a href="${osmLink(p)}" target="_blank" rel="noopener">Map</a>
+    </div>
+  </div>`;
+}
+
+function osmLink(p) {
+  const m = p.osm && String(p.osm).match(/^([NWR])(\d+)$/);
+  if (m) {
+    const type = { N: "node", W: "way", R: "relation" }[m[1]];
+    return `https://www.openstreetmap.org/${type}/${m[2]}`;
+  }
+  return `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=10/${p.lat}/${p.lon}`;
+}
+
+function renderResults(within, beyond) {
+  const box = $("results");
+  const radiusText = radiusLabel(radiusIdx);
+  shown = Math.min(shown, Math.max(within.length, RESULT_PAGE));
+  let html = "";
+  if (within.length) {
+    html += `<div class="result-head">${within.length} podcast${within.length === 1 ? "" : "s"} within ${radiusText}</div>`;
+    html += within.slice(0, shown).map(rowHTML).join("");
+    if (within.length > shown) html += `<button class="more" id="more-btn">Show more (${within.length - shown} left)</button>`;
+  } else {
+    html += `<div class="result-head">Nothing within ${radiusText} · nearest podcasts</div>`;
+    html += beyond.map((s, i) => rowHTML({ ...s, far: true }, i)).join("");
+  }
+  box.innerHTML = html;
+
+  box.querySelectorAll("img[data-fallback]").forEach(el => { el.onerror = () => { el.onerror = null; el.src = DEFAULT_COVER; }; });
+  box.querySelectorAll(".row").forEach(el => {
+    el.onclick = () => {
+      const detail = $(`detail-${el.dataset.detail}`);
+      const wasOpen = detail.classList.contains("visible");
+      box.querySelectorAll(".row-detail.visible").forEach(d => d.classList.remove("visible"));
+      box.querySelectorAll(".row.expanded").forEach(r => r.classList.remove("expanded"));
+      if (!wasOpen) { detail.classList.add("visible"); el.classList.add("expanded"); }
+    };
+  });
+  const more = $("more-btn");
+  if (more) more.onclick = () => { shown += RESULT_PAGE; renderResults(within, beyond, radiusKm); };
+}
+
+function escapeHTML(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+// ----- Location acquisition ----------------------------------------------
+function setCenter(lat, lon, label) {
+  center = { lat, lon };
+  shown = RESULT_PAGE;
+  setStatus(label || `Centered on ${lat.toFixed(3)}, ${lon.toFixed(3)}`);
+  runSearch();
+}
+
+$("locate-btn").addEventListener("click", () => {
+  // Geolocation only exists in secure contexts; without this check an HTTP
+  // LAN test would misreport the failure as "permission denied".
+  if (!window.isSecureContext) { geoFailed("Geolocation needs HTTPS."); return; }
+  if (!navigator.geolocation) { geoFailed("Geolocation isn't available in this browser."); return; }
+  setStatus("Locating…");
+  navigator.geolocation.getCurrentPosition(
+    // Round to ~1 km before the position can reach the shareable URL hash;
+    // the minimum radius is 10 km so the search loses nothing.
+    pos => setCenter(+pos.coords.latitude.toFixed(2), +pos.coords.longitude.toFixed(2), "Centered on your location"),
+    err => geoFailed(err.code === 1 ? "Location permission denied." : "Couldn't get your location."),
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+  );
+});
+
+function geoFailed(msg) {
+  setStatus(`${msg} Type coordinates below instead.`, true);
+  $("manual").classList.add("visible");
+  $("manual-input").focus();
+}
+
+function submitManual() {
+  const v = $("manual-input").value.trim();
+  if (!v) return;
+  const c = parseLatLon(v);
+  if (c) setCenter(c.lat, c.lon);
+  else setStatus('Couldn\'t parse that. Use "lat, lon", e.g. 41.9028, 12.4964', true);
+}
+$("manual-input").addEventListener("keydown", e => { if (e.key === "Enter") submitManual(); });
+// change also fires on blur / keyboard "go", so iOS users aren't Enter-dependent.
+$("manual-input").addEventListener("change", submitManual);
+
+$("radius").addEventListener("input", e => {
+  radiusIdx = +e.target.value;
+  $("radius-km").textContent = radiusLabel(radiusIdx);
+  shown = RESULT_PAGE;
+  runSearch();
+});
+
+$("unit-toggle").addEventListener("click", e => {
+  const u = e.target.closest(".u");
+  if (!u || u.dataset.u === unit) return;
+  unit = u.dataset.u;
+  try { localStorage.setItem("radar-unit", unit); } catch (e2) {} // explicit choice beats locale detection next visit
+  syncUnitUI();
+  shown = RESULT_PAGE;
+  runSearch();
+});
+function syncUnitUI() {
+  document.querySelectorAll("#unit-toggle .u").forEach(el => el.classList.toggle("active", el.dataset.u === unit));
+  $("radius-km").textContent = radiusLabel(radiusIdx);
+}
+syncUnitUI(); // reflect the locale-detected (or saved) unit on first paint
+
+$("rel-chips").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (!chip || !STATS.relSeen) return; // disabled until the dataset ships rel
+  relFilter = chip.dataset.rel;
+  document.querySelectorAll("#rel-chips .chip").forEach(c => c.classList.toggle("active", c === chip));
+  shown = RESULT_PAGE;
+  runSearch();
+});
+
+// Deep link: #lat,lon,km pre-centers the search (also handy for testing).
+function parseHash() {
+  const m = location.hash.match(/^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+))?$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+  if (!validCoords(lat, lon)) return null;
+  const km = m[3] ? parseInt(m[3], 10) : null;
+  return { lat, lon, km };
+}
+
+// ----- Boot --------------------------------------------------------------
+function applyData(rows) {
+  const n = normalize(rows);
+  PLACES = n.places;
+  STATS = n;
+  setStatus(`${n.withCoords} of ${n.total} located podcasts have usable coordinates.`);
+  if (n.relSeen) {
+    $("rel-chips").classList.remove("disabled");
+    $("rel-chips").removeAttribute("title");
+    $("chips-note").style.display = "none";
+  }
+}
+
+$("refresh-btn").addEventListener("click", async () => {
+  $("loader").classList.add("visible");
+  try {
+    applyData(await loadData(true));
+    if (center) { shown = RESULT_PAGE; runSearch(); }
+  } catch (e) {
+    console.error(e);
+    setStatus("Couldn't refresh: " + e.message, true);
+  }
+  $("loader").classList.remove("visible");
+});
+
+(async () => {
+  $("loader").classList.add("visible");
+  try {
+    applyData(await loadData());
+    $("loader").classList.remove("visible");
+    const h = parseHash();
+    if (h) {
+      if (h.km) {
+        // Hash radius is always km; snap it to the nearest stop of the
+        // active display unit.
+        let i = 0;
+        for (let j = 1; j < UNIT_STOPS[unit].length; j++) if (Math.abs(radiusKmAt(j) - h.km) < Math.abs(radiusKmAt(i) - h.km)) i = j;
+        radiusIdx = i; $("radius").value = i; $("radius-km").textContent = radiusLabel(i);
+      }
+      setCenter(h.lat, h.lon, `Centered on ${h.lat.toFixed(3)}, ${h.lon.toFixed(3)} (from link)`);
+    } else if (center) {
+      // The user may have tapped "near me" and been located while the
+      // dataset was still downloading; run the search they asked for.
+      runSearch();
+    }
+  } catch (e) {
+    console.error(e);
+    $("loader").classList.remove("visible");
+    setStatus("Couldn't load the dataset: " + e.message, true);
+  }
+})();
+</script>
+</body>
+</html>
