@@ -194,6 +194,7 @@
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-width: 640px; margin: 0 auto;
     background: var(--panel); border: 1px solid var(--border); border-bottom: none; border-radius: 16px 16px 0 0;
     max-height: 70vh; display: flex; flex-direction: column;
+    touch-action: pan-y; /* scroll yes, pinch-to-page-zoom no */
     padding-bottom: env(safe-area-inset-bottom);
     transform: translateY(105%); transition: transform 0.28s ease;
   }
@@ -824,6 +825,10 @@ let lodTimer = 0, lastPov = null, lastLabelSize = -1;
 const elCache = new Set(); // clusters currently holding a built cover element
 function scheduleLod(pov) {
   if (pov) lastPov = pov;
+  // Any camera movement dismisses the sheet. Pinch-zooming with it open
+  // fights the browser's page zoom on iOS and breaks the fixed layout, and
+  // map UIs dismiss their info cards on pan/zoom anyway.
+  if (document.body.classList.contains("sheet-open")) closeSheet();
   clearTimeout(lodTimer);
   lodTimer = setTimeout(updateLod, 120);
 }
@@ -991,6 +996,11 @@ function openSheet(cluster) {
 function closeSheet() {
   $("sheet").classList.remove("open");
   document.body.classList.remove("sheet-open");
+}
+// Safari-only gesture event; preventing it stops native page pinch-zoom from
+// starting on these layers (the globe canvas implements its own pinch).
+for (const id of ["sheet", "globe-wrap"]) {
+  $(id).addEventListener("gesturestart", e => e.preventDefault());
 }
 $("sheet-close").addEventListener("click", closeSheet);
 $("sheet-backdrop").addEventListener("click", closeSheet);
