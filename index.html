@@ -96,7 +96,7 @@
   .row img.cover { width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0; background: var(--panel-2); object-fit: cover; }
   .row .info { flex: 1; min-width: 0; }
   .row .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row .place { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .row .place { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; } /* full addresses wrap instead of losing their tail */
   .row .dist { font-size: 13px; font-weight: 600; color: var(--accent-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .row .dist.far { color: var(--muted); }
   /* Badges sit on their own line above the title: inline they disappear into
