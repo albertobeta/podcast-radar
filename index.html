@@ -99,7 +99,10 @@
   .row .place { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
   .row .dist { font-size: 13px; font-weight: 600; color: var(--accent-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .row .dist.far { color: var(--muted); }
-  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+  /* Badges sit on their own line above the title: inline they disappear into
+     the title's ellipsis clip when the title is long (mobile). */
+  .badges { line-height: 1; margin-bottom: 3px; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 6px; }
   .badge.creator { background: rgba(34,211,238,0.15); color: var(--creator); }
   .badge.subject { background: rgba(244,114,182,0.15); color: var(--subject); }
   .badge.medium { background: rgba(124,92,255,0.2); color: var(--accent); }
@@ -501,7 +504,8 @@ function rowHTML(s, i, prefix = "") {
   return `<div class="row" data-detail="${key}">
     <img class="cover" src="${escapeHTML(p.image || DEFAULT_COVER)}" alt="" loading="lazy" decoding="async" width="56" height="56" data-fallback>
     <div class="info">
-      <div class="title">${escapeHTML(p.title)}${relBadge}${mediumBadge}</div>
+      ${relBadge || mediumBadge ? `<div class="badges">${relBadge}${mediumBadge}</div>` : ""}
+      <div class="title">${escapeHTML(p.title)}</div>
       <div class="place">${escapeHTML(p.place)}</div>
     </div>
     <div class="dist${s.far ? " far" : ""}">${dist}</div>
