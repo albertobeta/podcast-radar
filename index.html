@@ -427,7 +427,7 @@ function renderResults(within, beyond) {
     };
   });
   const more = $("more-btn");
-  if (more) more.onclick = () => { shown += RESULT_PAGE; renderResults(within, beyond, radiusKm); };
+  if (more) more.onclick = () => { shown += RESULT_PAGE; renderResults(within, beyond); };
 }
 
 function escapeHTML(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
