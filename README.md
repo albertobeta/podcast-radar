@@ -43,13 +43,13 @@ index.html                 The whole app.
 fallback-locations.json    Dataset snapshot, served if the live endpoint fails.
 404.html                   Real 404 page (also switches Cloudflare Pages out of SPA-fallback mode).
 favicon.svg                Radar logo.
-vendor/                    Self-hosted globe view assets (globe.gl + country outlines).
+vendor/                    Self-hosted globe view assets (globe.gl + country outlines); third-party, licensed per vendor/LICENSES.md.
 README.md                  This file.
 ```
 
 ## License
 
-Released under [**Creative Commons Attribution 4.0 (CC BY 4.0)**](https://creativecommons.org/licenses/by/4.0/). You're free to use, adapt, remix and redistribute, including commercially, as long as you give appropriate credit and link back to this repository.
+Released under [**Creative Commons Attribution 4.0 (CC BY 4.0)**](https://creativecommons.org/licenses/by/4.0/). You're free to use, adapt, remix and redistribute, including commercially, as long as you give appropriate credit and link back to this repository. The third-party files under `vendor/` are not covered by CC BY 4.0; they keep their upstream licences (MIT, Apache 2.0, public domain · see [vendor/LICENSES.md](vendor/LICENSES.md)).
 
 ## Credits
 
