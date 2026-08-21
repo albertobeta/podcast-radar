@@ -409,7 +409,7 @@
     <a class="player-place" id="player-place" target="_blank" rel="noopener" hidden></a>
   </div>
   <button class="player-btn" id="player-toggle" aria-label="Play or pause">⏸</button>
-  <button class="player-next" id="player-next" title="Play another random podcast">⏭ Next random</button>
+  <button class="player-next" id="player-next" title="Play another random podcast">⏭ Random</button>
   <button class="player-btn" id="player-close" aria-label="Close the player">✕</button>
   <audio id="player-audio" preload="none"></audio>
 </div>
@@ -1479,7 +1479,7 @@ async function playRandom() {
     played = true;
     break;
   }
-  if (!played && !$("player").hidden) { setPlayerInfo(null); setPlayerEpisode("Couldn't tune into anything · tap Next random to retry"); }
+  if (!played && !$("player").hidden) { setPlayerInfo(null); setPlayerEpisode("Couldn't tune into anything · tap Random to retry"); }
   syncPlayBtn();
   radioBusy = false;
 }
