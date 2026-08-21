@@ -117,7 +117,7 @@
   .row:active { background: var(--panel-2); }
   .row img.cover { width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0; background: var(--panel-2); object-fit: cover; }
   .row .info { flex: 1; min-width: 0; }
-  .row .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .title { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; } /* long titles wrap, same as places */
   .row .place { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; } /* full addresses wrap instead of losing their tail */
   .row .dist { font-size: 13px; font-weight: 600; color: var(--accent-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .row .dist.far { color: var(--muted); }
@@ -134,6 +134,9 @@
   .row-detail.visible { display: block; }
   .row.expanded { border-radius: 10px 10px 0 0; margin-bottom: 0; }
   .row-detail .links { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
+  .osm-info { display: block; font-size: 11px; color: var(--muted); margin-top: 14px; overflow-wrap: anywhere; text-decoration: none; line-height: 1.5; }
+  .osm-info b { color: var(--text); }
+  .osm-info .osm-src { color: var(--accent-2); }
   .row-detail a {
     font-size: 12px; font-weight: 600; color: var(--accent-2); text-decoration: none;
     padding: 7px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
@@ -180,7 +183,10 @@
   #globe-wrap { display: none; position: fixed; inset: 0; z-index: 40; background: var(--bg); overscroll-behavior: none; touch-action: none; }
   body.globe-view #globe-wrap { display: block; }
   body.globe-view { overflow: hidden; }
-  #globe { position: absolute; inset: 0; touch-action: none; }
+  /* z-index 1 makes #globe a stacking context: globe.gl depth-sorts its DOM
+     covers with large z-indexes, which would otherwise leak out and sit on
+     top of the overlay chrome (chips, hint, toggle). */
+  #globe { position: absolute; inset: 0; touch-action: none; z-index: 1; }
   #globe canvas { touch-action: none; } /* three.js sets this inline too; keep it true even if the lib changes */
   /* Blanket: a pinch starting on ANY overlay child (toggle, hint, reset) must
      not become a page zoom; taps still work, there is nothing to scroll here. */
@@ -201,6 +207,13 @@
   .globe-reset:active { background: var(--panel-2); color: var(--text); }
   .globe-brand { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
   .globe-brand img { width: 22px; height: 22px; }
+  .globe-chips {
+    position: absolute; left: 50%; transform: translateX(-50%); z-index: 3;
+    bottom: calc(52px + env(safe-area-inset-bottom)); margin: 0; gap: 6px;
+  }
+  .globe-chips .chip { flex: none; padding: 7px 14px; background: var(--panel); }
+  .globe-credit { margin-top: 4px; font-size: 10px; }
+  .globe-credit a { color: var(--accent-2); text-decoration: none; pointer-events: auto; }
   .globe-hint {
     position: absolute; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 3;
     text-align: center; font-size: 11px; color: var(--muted); pointer-events: none;
@@ -280,8 +293,8 @@
 
     <div class="chips disabled" id="rel-chips" title="The dataset doesn't carry the creator/subject distinction yet">
       <div class="chip active" data-rel="all">All</div>
-      <div class="chip creator" data-rel="creator">Made here</div>
-      <div class="chip subject" data-rel="subject">About here</div>
+      <div class="chip creator" data-rel="creator">Made in</div>
+      <div class="chip subject" data-rel="subject">About</div>
     </div>
     <div class="chips-note" id="chips-note">Creator vs subject filter will activate once the dataset includes the tag's <code>rel</code> attribute.</div>
 
@@ -303,7 +316,7 @@
   <details class="about">
     <summary>About this app</summary>
     <p><strong>Your location never leaves your device.</strong> This is a static web app with no backend: your browser reads your location (or the coordinates you type) and runs the whole search · distance maths, sorting, rendering · locally. No coordinates are sent to any server, and there are no cookies or tracking scripts.</p>
-    <p>Network traffic is one-way and minimal: the open <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">&lt;podcast:location&gt;</a> dataset is fetched from podcastindex.org and cached in your browser for an hour (see Data below), and cover images load directly from each podcast's own host. The globe view's 3D library and map outlines are served from this same site, not a CDN.</p>
+    <p>Network traffic is one-way and minimal: the open <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">&lt;podcast:location&gt;</a> dataset is fetched from podcastindex.org and cached in your browser for an hour (see Data below), and cover images load directly from each podcast's own host. The globe view's 3D library and map outlines are served from this same site, not a CDN. Expanding a podcast's details also asks OpenStreetMap's Nominatim service what that show's place id refers to · the request carries only the podcast's public place id, never your location.</p>
     <p>Some rows in the dataset name a place without coordinates (a bare "Springfield, USA" with no geo or OSM data). Those can't be plotted on a map or ranked by distance, so the counter above only includes podcasts the app can actually place.</p>
     <p>A search is written into the page address so you can bookmark or share it · just know the link carries the coordinates you searched from.</p>
   </details>
@@ -324,7 +337,15 @@
     </div>
   </div>
   <div id="globe"></div>
-  <div class="globe-hint" id="globe-hint"></div>
+  <div class="chips globe-chips" id="globe-chips" hidden>
+    <div class="chip active" data-rel="all">All</div>
+    <div class="chip creator" data-rel="creator">Made in</div>
+    <div class="chip subject" data-rel="subject">About</div>
+  </div>
+  <div class="globe-hint" id="globe-hint">
+    <div id="globe-hint-text"></div>
+    <div class="globe-credit"><a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">Data source</a> · <a href="https://github.com/albertobeta/podcast-radar" target="_blank" rel="noopener">GitHub repo</a> · By AB at <a href="https://rss.com" target="_blank" rel="noopener">RSS.com</a></div>
+  </div>
   <div id="globe-loader"><div class="spinner"></div><div>Loading the globe…</div></div>
 </div>
 
@@ -549,7 +570,7 @@ function runSearch() {
 function rowHTML(s, i, prefix = "") {
   const { p, d } = s;
   const dist = d == null ? "" : fmtDist(d); // sheet rows have no distance before a search
-  const relBadge = p.rel ? `<span class="badge ${p.rel}">${p.rel === "creator" ? "made here" : "about here"}</span>` : "";
+  const relBadge = p.rel ? `<span class="badge ${p.rel}">${p.rel === "creator" ? "made in" : "about"}</span>` : "";
   const mediumBadge = p.medium && p.medium !== "podcast" ? `<span class="badge medium">${escapeHTML(p.medium)}</span>` : "";
   // Details are keyed by render index (prefixed per container), not feedId:
   // the normalizer can emit several places for one feed, and ids must stay
@@ -566,10 +587,10 @@ function rowHTML(s, i, prefix = "") {
   </div>
   <div class="row-detail" id="detail-${key}">
     <div class="links">
+      <a href="https://podcastindex.org/podcast/${p.feedId}" target="_blank" rel="noopener">Podcast page</a>
       ${p.url ? `<a href="${escapeHTML(p.url)}" target="_blank" rel="noopener">RSS feed</a>` : ""}
-      <a href="https://podcastindex.org/podcast/${p.feedId}" target="_blank" rel="noopener">Podcast Index</a>
-      <a href="${osmLink(p)}" target="_blank" rel="noopener">Map</a>
     </div>
+    <a class="osm-info" data-osm="${/^[NWR]\d+$/.test(p.osm || "") ? escapeHTML(p.osm) : ""}" data-lat="${p.lat}" data-lon="${p.lon}" data-href="${osmLink(p)}" target="_blank" rel="noopener" hidden></a>
   </div>`;
 }
 
@@ -613,8 +634,54 @@ function bindRows(box) {
       const wasOpen = detail.classList.contains("visible");
       box.querySelectorAll(".row-detail.visible").forEach(d => d.classList.remove("visible"));
       box.querySelectorAll(".row.expanded").forEach(r => r.classList.remove("expanded"));
-      if (!wasOpen) { detail.classList.add("visible"); el.classList.add("expanded"); }
+      if (!wasOpen) { detail.classList.add("visible"); el.classList.add("expanded"); fillOsmInfo(detail); }
     };
+  });
+}
+
+// What IS this place? Nominatim resolves the row's OSM id to a typed name
+// ("State · Queensland, Australia"), which matters because a subject tag can
+// point at anything from a cafe to a region 2.6x the size of Texas. Only the
+// podcast's public place id is sent, never the user's location; results and
+// failures are cached so a session asks about each place at most once.
+const osmCache = new Map();
+function osmLookup(cacheKey, url) {
+  if (osmCache.has(cacheKey)) return osmCache.get(cacheKey);
+  const p = (async () => {
+    const raw = await fetchJSON(url);
+    const r = Array.isArray(raw) ? raw[0] : raw; // lookup returns an array, reverse a bare object
+    if (!r || r.error) return null;
+    const kind = String(r.addresstype || r.type || "place").replace(/_/g, " ");
+    // Short name + country code only: the full address already sits in the
+    // row above as the dataset's own place string.
+    const name = r.name || String(r.display_name || "").split(",")[0].trim();
+    const cc = kind === "country" ? "" : (r.address && r.address.country_code ? r.address.country_code.toUpperCase() : "");
+    return { kind: kind.charAt(0).toUpperCase() + kind.slice(1), name, cc };
+  })().catch(() => null);
+  osmCache.set(cacheKey, p);
+  return p;
+}
+function fillOsmInfo(detail) {
+  const info = detail.querySelector(".osm-info");
+  if (!info || info.dataset.state) return;
+  info.dataset.state = "loading";
+  info.hidden = false;
+  const linkify = html => {
+    info.href = info.dataset.href; // the line replaces the old Map button as the map link
+    info.innerHTML = html;
+    info.dataset.state = "done";
+  };
+  info.textContent = "📍 Looking up this place on OpenStreetMap…";
+  // Rows with an OSM id resolve it directly; id-less rows reverse-geocode
+  // their coordinates at city granularity (zoom 10; finer zooms surface
+  // trivia like "Ward 2", and the row above already shows the full address).
+  const { osm, lat, lon } = info.dataset;
+  const req = osm
+    ? osmLookup(osm, `https://nominatim.openstreetmap.org/lookup?osm_ids=${osm}&format=jsonv2&addressdetails=1`)
+    : osmLookup(`rev:${lat},${lon}`, `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&zoom=10&format=jsonv2`);
+  req.then(r => {
+    if (r && r.name) linkify(`📍 <b>${escapeHTML(r.kind)}</b> · ${escapeHTML(r.name)}${r.cc ? ` (${escapeHTML(r.cc)})` : ""}`);
+    else linkify(`📍 <span class="osm-src">View on OpenStreetMap</span>`); // lookup failed; keep the map reachable
   });
 }
 
@@ -631,6 +698,7 @@ function setCenter(lat, lon, label, isYou = false) {
   $("located-title").textContent = isYou ? `Showing podcasts near you (${coords})` : `Showing podcasts around ${coords}`;
   shown = RESULT_PAGE;
   setStatus(dataStatusLine()); // the located panel says where; status returns to the dataset count
+  if (view === "globe" && globe) globe.pointOfView({ lat, lng: lon, altitude: 1.2 }, 1000);
   runSearch();
 }
 
@@ -666,6 +734,7 @@ function requestLocation() {
 $("locate-btn").addEventListener("click", requestLocation);
 
 function geoFailed(msg) {
+  if (view === "globe") setView("list"); // the manual input and the error live in the list card
   setStatus(`${msg} Type coordinates below instead.`, true);
   $("manual").classList.add("visible");
   $("manual-input").focus();
@@ -724,14 +793,19 @@ function syncUnitUI() {
 }
 syncUnitUI(); // reflect the locale-detected (or saved) unit on first paint
 
-$("rel-chips").addEventListener("click", e => {
-  const chip = e.target.closest(".chip");
-  if (!chip || !STATS.relSeen) return; // disabled until the dataset ships rel
-  relFilter = chip.dataset.rel;
-  document.querySelectorAll("#rel-chips .chip").forEach(c => c.classList.toggle("active", c === chip));
+// One rel filter, two chip rows (search card and globe overlay), kept in step.
+function setRelFilter(rel) {
+  if (!STATS.relSeen) return; // disabled until the dataset ships rel
+  relFilter = rel;
+  document.querySelectorAll(".chips .chip").forEach(c => c.classList.toggle("active", c.dataset.rel === rel));
   shown = RESULT_PAGE;
   runSearch();
-});
+  if (globe) refreshGlobeData(); // clusters are built from the filtered rows
+}
+document.querySelectorAll(".chips").forEach(box => box.addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (chip) setRelFilter(chip.dataset.rel);
+}));
 
 // Deep link: #lat,lon,km pre-centers the search (also handy for testing).
 // A trailing ",globe" flag deep-links the globe view; "#globe" alone opens
@@ -829,7 +903,7 @@ async function initGlobe() {
     // Coarse pointers get fatter pins (basePointRadius); pointScale shrinks
     // them as the camera descends so a city dot never swallows the screen.
     .pointRadius(d => basePointRadius(d) * pointScale)
-    .pointColor(() => cssVar("--globe-point"))
+    .pointColor(d => d.relMix === "creator" ? cssVar("--creator") : d.relMix === "subject" ? cssVar("--subject") : cssVar("--globe-point"))
     .pointLabel(d => `<b>${escapeHTML(d.place)}</b> · ${d.items.length} podcast${d.items.length === 1 ? "" : "s"}`)
     .onPointClick(openSheet)
     .htmlLat(d => d.lat).htmlLng(d => d.lng).htmlAltitude(0.01)
@@ -866,12 +940,13 @@ async function initGlobe() {
 // autocomplete tooling, and the osm id is the canonical place identity (two
 // rows with the same osm id are the same place even when locale strings
 // differ, e.g. "Wien" vs "Vienna").
-let clustersFor = null;
+let clustersFor = null, clustersRel = null;
 function buildClusters() {
-  if (clustersFor === PLACES) return; // PLACES is replaced wholesale on refresh
-  clustersFor = PLACES;
+  if (clustersFor === PLACES && clustersRel === relFilter) return; // PLACES is replaced wholesale on refresh
+  clustersFor = PLACES; clustersRel = relFilter;
+  const src = relFilter === "all" ? PLACES : PLACES.filter(p => p.rel === relFilter);
   const byKey = new Map();
-  for (const p of PLACES) {
+  for (const p of src) {
     const key = p.osm ? `o:${p.osm}` : `c:${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
     let c = byKey.get(key);
     if (!c) { c = { lat: p.lat, lng: p.lon, place: p.place, items: [] }; byKey.set(key, c); }
@@ -887,21 +962,27 @@ function buildClusters() {
     if (m) m.items.push(...c.items);
     else { c.key = spot; bySpot.set(spot, c); }
   }
+  // A cluster of purely made-in or purely about podcasts gets that colour;
+  // mixed or unknown stays the neutral purple.
+  for (const c of bySpot.values()) {
+    const r0 = c.items[0].rel;
+    c.relMix = r0 && c.items.every(i => i.rel === r0) ? r0 : null;
+  }
   clusters = [...bySpot.values()];
 }
 
 function refreshGlobeData() {
   if (!globe) return;
-  const before = clustersFor;
+  const before = clusters;
   buildClusters();
-  if (before !== clustersFor) {
-    groupEls.clear(); // group keys are coordinate spots; a refreshed dataset can reuse them with new art
+  if (clusters !== before) { // rebuilt: dataset refreshed or rel filter changed
+    groupEls.clear(); // group keys are coordinate spots and can survive a rebuild with different art/counts
     lastGroupsByKey.clear();
     shownGroups = []; lodSig = "";
     globe.pointsData(clusters).htmlElementsData([]);
   }
   syncGlobeCenter();
-  $("globe-hint").textContent = clusters.length
+  $("globe-hint-text").textContent = clusters.length
     ? `${PLACES.length} located podcast${PLACES.length === 1 ? "" : "s"} in ${clusters.length} place${clusters.length === 1 ? "" : "s"}`
     : "Waiting for the dataset…";
   scheduleLod(globe.pointOfView());
@@ -1201,7 +1282,7 @@ if (window.visualViewport) {
     const top = document.querySelector("#globe-wrap .globe-top");
     const hint = $("globe-hint");
     const zoomed = vv.scale !== 1 || vv.offsetLeft || vv.offsetTop;
-    if (!zoomed) { top.style.transform = hint.style.transform = ""; return; }
+    if (!zoomed) { top.style.transform = hint.style.transform = ""; $("globe-chips").style.transform = ""; return; }
     top.style.transformOrigin = "top left";
     top.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop}px) scale(${1 / vv.scale})`;
     // clientHeight is the layout viewport height, stable under pinch; the
@@ -1209,6 +1290,9 @@ if (window.visualViewport) {
     const dy = vv.offsetTop + vv.height - document.documentElement.clientHeight;
     hint.style.transformOrigin = "bottom left";
     hint.style.transform = `translate(${vv.offsetLeft}px, ${dy}px) scale(${1 / vv.scale})`;
+    const chips = $("globe-chips");
+    chips.style.transformOrigin = "bottom center";
+    chips.style.transform = `translateX(-50%) translate(${vv.offsetLeft}px, ${dy}px) scale(${1 / vv.scale})`;
   };
   vv.addEventListener("resize", pinGlobeChrome);
   vv.addEventListener("scroll", pinGlobeChrome);
@@ -1216,7 +1300,10 @@ if (window.visualViewport) {
 $("globe-reset").addEventListener("click", () => {
   if (!globe) return;
   closeSheet();
-  globe.pointOfView(center ? { lat: center.lat, lng: center.lon, altitude: 1.7 } : { lat: 25, lng: 10, altitude: 2.5 }, 800);
+  // Globe-first visitors have never been asked for location: the crosshair
+  // asks, and setCenter flies the camera home once it is known.
+  if (!center) { requestLocation(); return; }
+  globe.pointOfView({ lat: center.lat, lng: center.lon, altitude: 1.7 }, 800);
 });
 $("sheet-close").addEventListener("click", closeSheet);
 $("sheet-backdrop").addEventListener("click", closeSheet);
@@ -1249,6 +1336,7 @@ function applyData(rows) {
     $("rel-chips").classList.remove("disabled");
     $("rel-chips").removeAttribute("title");
     $("chips-note").style.display = "none";
+    $("globe-chips").hidden = false;
   }
   if (globe) refreshGlobeData(); // Force refresh while the globe is up
 }
