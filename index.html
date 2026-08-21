@@ -212,7 +212,7 @@
     bottom: calc(52px + env(safe-area-inset-bottom)); margin: 0; gap: 6px;
   }
   .globe-chips .chip { flex: none; padding: 7px 14px; background: var(--panel); }
-  .globe-credit { margin-top: 4px; font-size: 10px; }
+  .globe-credit { margin-top: 7px; font-size: 10px; }
   .globe-credit a { color: var(--accent-2); text-decoration: none; pointer-events: auto; }
   .globe-hint {
     position: absolute; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 3;
@@ -240,6 +240,54 @@
     border-radius: 999px; padding: 2px 5px; border: 2px solid var(--bg);
   }
 
+  /* Random-podcast radio */
+  .random-btn {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 3;
+    padding: 12px 20px; font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none; border-radius: 999px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(124, 92, 255, 0.4);
+  }
+  .random-btn:active { filter: brightness(1.15); }
+  body.player-open .random-btn, body.player-open .globe-chips, body.player-open .globe-hint { display: none; }
+  .player {
+    position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 70;
+    max-width: 620px; margin: 0 auto;
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+  .player-art { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--panel-2); flex-shrink: 0; }
+  .player-info { flex: 1; min-width: 0; }
+  .player-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Marquee: one animated track holding two copies of the text; shifting the
+     track by half its width (= one copy) loops seamlessly. Only .scrolling
+     (set when the text overflows) animates. */
+  .player-ep { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; margin-top: 4px; }
+  .ep-track { display: inline-flex; }
+  .player-ep.scrolling span { padding-right: 48px; }
+  .player-ep.scrolling .ep-track { animation: player-marquee 14s linear infinite; }
+  @keyframes player-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .player-ep.scrolling .ep-track { animation: none; } }
+  .player-place { display: block; font-size: 11px; color: var(--muted); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .player-place b { color: var(--text); }
+  .player-btn {
+    width: 38px; height: 38px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+    color: var(--text); font-size: 15px; cursor: pointer;
+  }
+  .player-btn:active { background: var(--bg); }
+  /* The one ambiguous control gets words, and the CTA's gradient ties it to
+     the "Play random podcast" button that started the session. */
+  .player-next {
+    flex-shrink: 0; padding: 10px 14px; font-size: 12px; font-weight: 700; white-space: nowrap;
+    color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none; border-radius: 999px; cursor: pointer;
+  }
+  .player-next:active { filter: brightness(1.15); }
+  body.player-open .sheet { bottom: calc(76px + env(safe-area-inset-bottom)); } /* the sheet rides above the bar */
+  body.player-open main { padding-bottom: 110px; } /* list content clears the bar too */
+
   /* Bottom sheet: a tapped place's podcasts, reusing the list rows */
   .sheet {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-width: 640px; margin: 0 auto;
@@ -247,7 +295,9 @@
     max-height: 70vh; display: flex; flex-direction: column;
     touch-action: pan-y; /* scroll yes, pinch-to-page-zoom no */
     padding-bottom: env(safe-area-inset-bottom);
-    transform: translateY(105%); transition: transform 0.28s ease;
+    /* the hide distance must also cover the raised bottom offset while the
+       player bar is open, or the closed sheet's top edge peeks out behind it */
+    transform: translateY(calc(105% + 96px)); transition: transform 0.28s ease;
   }
   .sheet.open { transform: translateY(0); }
   .sheet-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
@@ -347,6 +397,20 @@
     <div class="globe-credit"><a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">Data source</a> · <a href="https://github.com/albertobeta/podcast-radar" target="_blank" rel="noopener">GitHub repo</a> · By AB at <a href="https://rss.com" target="_blank" rel="noopener">RSS.com</a></div>
   </div>
   <div id="globe-loader"><div class="spinner"></div><div>Loading the globe…</div></div>
+  <button class="random-btn" id="random-btn">▶ Play random podcast</button>
+</div>
+
+<div class="player" id="player" hidden>
+  <img class="player-art" id="player-art" src="" alt="" width="44" height="44" decoding="async">
+  <div class="player-info">
+    <div class="player-title" id="player-title"></div>
+    <div class="player-ep" id="player-ep"><div class="ep-track" id="player-ep-track"><span id="player-ep-text"></span><span id="player-ep-dup" aria-hidden="true"></span></div></div>
+    <a class="player-place" id="player-place" target="_blank" rel="noopener" hidden></a>
+  </div>
+  <button class="player-btn" id="player-toggle" aria-label="Play or pause">⏸</button>
+  <button class="player-next" id="player-next" title="Play another random podcast">⏭ Next random</button>
+  <button class="player-btn" id="player-close" aria-label="Close the player">✕</button>
+  <audio id="player-audio" preload="none"></audio>
 </div>
 
 <div id="sheet-backdrop"></div>
@@ -661,6 +725,22 @@ function osmLookup(cacheKey, url) {
   osmCache.set(cacheKey, p);
   return p;
 }
+// Places with an OSM id resolve it directly; id-less ones reverse-geocode
+// their coordinates at city granularity (zoom 10; finer zooms surface trivia
+// like "Ward 2", and the full address is shown elsewhere anyway).
+function resolvePlace(osm, lat, lon) {
+  const reverse = () => (lat == null || lat === "") ? Promise.resolve(null)
+    : osmLookup(`rev:${lat},${lon}`, `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&zoom=10&format=jsonv2`);
+  if (!osm) return reverse();
+  // Dataset OSM ids can be stale (deleted/replaced objects return []): fall
+  // back to reverse geocoding the coordinates before giving up.
+  return osmLookup(osm, `https://nominatim.openstreetmap.org/lookup?osm_ids=${osm}&format=jsonv2&addressdetails=1`)
+    .then(r => r || reverse());
+}
+function placeHTML(r) {
+  return `📍 <b>${escapeHTML(r.kind)}</b> · ${escapeHTML(r.name)}${r.cc ? ` (${escapeHTML(r.cc)})` : ""}`;
+}
+
 function fillOsmInfo(detail) {
   const info = detail.querySelector(".osm-info");
   if (!info || info.dataset.state) return;
@@ -672,15 +752,8 @@ function fillOsmInfo(detail) {
     info.dataset.state = "done";
   };
   info.textContent = "📍 Looking up this place on OpenStreetMap…";
-  // Rows with an OSM id resolve it directly; id-less rows reverse-geocode
-  // their coordinates at city granularity (zoom 10; finer zooms surface
-  // trivia like "Ward 2", and the row above already shows the full address).
-  const { osm, lat, lon } = info.dataset;
-  const req = osm
-    ? osmLookup(osm, `https://nominatim.openstreetmap.org/lookup?osm_ids=${osm}&format=jsonv2&addressdetails=1`)
-    : osmLookup(`rev:${lat},${lon}`, `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&zoom=10&format=jsonv2`);
-  req.then(r => {
-    if (r && r.name) linkify(`📍 <b>${escapeHTML(r.kind)}</b> · ${escapeHTML(r.name)}${r.cc ? ` (${escapeHTML(r.cc)})` : ""}`);
+  resolvePlace(info.dataset.osm, info.dataset.lat, info.dataset.lon).then(r => {
+    if (r && r.name) linkify(placeHTML(r));
     else linkify(`📍 <span class="osm-src">View on OpenStreetMap</span>`); // lookup failed; keep the map reachable
   });
 }
@@ -1002,7 +1075,7 @@ function syncGlobeCenter() {
       .labelsData([{ lat: center.lat, lng: center.lon }])
       .labelText(() => "you are here")
       .labelSize(0.85).labelDotRadius(0.35)
-      .labelColor(() => "#22d3ee").labelAltitude(0.012);
+      .labelColor(() => "#facc15").labelAltitude(0.012); // flashy yellow: nothing else on the globe uses it
     lastLabelSize = 0.85; // keep the updateLod cache truthful, or the giant close-range label returns after a refresh
   } else {
     globe.ringsData([]).labelsData([]);
@@ -1243,6 +1316,190 @@ function pumpThumbs() {
   }
 }
 
+// ----- Random podcast radio ----------------------------------------------
+// Radio-garden-inspired: pick a random show, fly the globe there, resolve its
+// RSS feed to the newest playable audio enclosure, and play it in a sticky
+// bar. RSS fetching follows the Atlas rules: isUnsafeRssUrl preflight copied
+// verbatim, ~half of podcast hosts fail CORS (the globe just hops to another
+// show), failures are cached so nothing retries, and every panel stays
+// complete without the feed.
+function isUnsafeRssUrl(rssUrl) {
+  let u;
+  try { u = new URL(rssUrl); } catch { return true; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return true;
+  const host = u.hostname.toLowerCase();
+  if (host === "localhost") return true;
+  if (host.endsWith(".local") || host.endsWith(".lan") || host.endsWith(".home") || host.endsWith(".internal")) return true;
+  // IPv4 literal in private / loopback / link-local ranges.
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 0) return true;
+  }
+  // IPv6 loopback / unique-local / link-local.
+  if (host === "::1" || host === "[::1]") return true;
+  if (host.startsWith("fc") || host.startsWith("fd")) return true; // fc00::/7
+  if (host.startsWith("fe80:") || host.startsWith("[fe80:")) return true; // fe80::/10
+  // Suspicious port (non-standard, often a local service).
+  if (u.port && u.port !== "80" && u.port !== "443") return true;
+  return false;
+}
+
+const RADIO_ATTEMPTS = 8; // hops before giving up; each failed hop is just a flight
+const feedAudioCache = new Map(); // feed url -> Promise<{audio, epTitle} | null>
+let radioBusy = false, lastRandom = null;
+
+function resolveFeedAudio(url) {
+  if (feedAudioCache.has(url)) return feedAudioCache.get(url);
+  const p = (async () => {
+    if (!url || isUnsafeRssUrl(url)) return null;
+    // http feeds would be blocked as mixed content anyway; try the https twin
+    const res = await fetch(url.replace(/^http:/i, "https:"));
+    if (!res.ok) return null;
+    const doc = new DOMParser().parseFromString(await res.text(), "text/xml");
+    if (doc.querySelector("parsererror")) return null;
+    // Items arrive newest-first; walk until an item carries playable audio
+    // (some shows lead with video episodes).
+    for (const item of doc.querySelectorAll("item")) {
+      const enc = item.querySelector("enclosure");
+      if (!enc) continue;
+      const src = (enc.getAttribute("url") || "").replace(/^http:/i, "https:");
+      const type = enc.getAttribute("type") || "";
+      if (!/^https:\/\//i.test(src)) continue;
+      if (type.startsWith("audio/") || (!type && /\.(mp3|m4a|aac|ogg|opus)([?#]|$)/i.test(src))) {
+        const t = item.querySelector("title");
+        return { audio: src, epTitle: t ? t.textContent.trim() : "" };
+      }
+    }
+    return null;
+  })().catch(() => null);
+  feedAudioCache.set(url, p);
+  return p;
+}
+
+// One silent play inside the user's tap unlocks later programmatic plays on iOS.
+function unlockAudio() {
+  const a = $("player-audio");
+  if (a.dataset.unlocked) return;
+  a.dataset.unlocked = "1";
+  a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+  a.play().catch(() => {});
+}
+
+// The out-then-in arc: rise to a world view, then descend onto the target.
+function flyTo(lat, lng, ms) {
+  return new Promise(done => {
+    const pov = globe.pointOfView();
+    globe.pointOfView({ lat: pov.lat, lng: pov.lng, altitude: Math.max(pov.altitude, 1.6) }, ms * 0.35);
+    setTimeout(() => globe.pointOfView({ lat, lng, altitude: 0.35 }, ms * 0.65), ms * 0.35 + 60);
+    setTimeout(done, ms + 150);
+  });
+}
+
+let placeToken = 0; // ignore a place lookup that lands after the next hop started
+function setPlayerInfo(p) {
+  placeToken++;
+  $("player-title").textContent = p ? p.title : "Random podcast";
+  $("player-place").hidden = true;
+  const art = $("player-art");
+  art.onerror = () => { art.onerror = null; art.src = DEFAULT_COVER; };
+  art.src = p && p.image ? p.image : DEFAULT_COVER;
+}
+
+// The episode line marquees right-to-left, but only when it overflows: two
+// copies of the text on one track, shifted by one copy's width per loop.
+// Measured synchronously (offsetWidth forces layout), no frame callback to
+// silently never fire.
+function setPlayerEpisode(text) {
+  const box = $("player-ep"), track = $("player-ep-track"), a = $("player-ep-text"), b = $("player-ep-dup");
+  box.classList.remove("scrolling");
+  a.textContent = text || "";
+  b.textContent = "";
+  if (text && box.clientWidth > 0 && a.offsetWidth > box.clientWidth) { // 0 = hidden tab, no real measurement
+    b.textContent = text;
+    track.style.animationDuration = `${Math.max(9, Math.round(a.offsetWidth / 28))}s`; // constant reading speed
+    box.classList.add("scrolling");
+  }
+}
+
+function showPlayerPlace(p) {
+  const myToken = placeToken;
+  resolvePlace(/^[NWR]\d+$/.test(p.osm || "") ? p.osm : "", p.lat, p.lon).then(r => {
+    if (placeToken !== myToken || $("player").hidden) return; // already hopped on
+    const ph = $("player-place");
+    ph.href = osmLink(p);
+    ph.innerHTML = r && r.name ? placeHTML(r) : `📍 ${escapeHTML(p.place)}`;
+    ph.hidden = false;
+  });
+}
+
+function syncPlayBtn() {
+  $("player-toggle").textContent = $("player-audio").paused ? "▶" : "⏸";
+}
+
+async function playRandom() {
+  if (!globe || radioBusy || !PLACES.length) return;
+  radioBusy = true;
+  unlockAudio();
+  closeSheet();
+  document.body.classList.add("player-open");
+  $("player").hidden = false;
+  const audio = $("player-audio");
+  audio.pause();
+  const pool = (relFilter === "all" ? PLACES : PLACES.filter(pp => pp.rel === relFilter)).filter(pp => pp.url);
+  let played = false;
+  for (let i = 0; i < RADIO_ATTEMPTS && pool.length; i++) {
+    let p = pool[Math.floor(Math.random() * pool.length)];
+    if (p === lastRandom && pool.length > 1) p = pool[Math.floor(Math.random() * pool.length)];
+    lastRandom = p;
+    setPlayerInfo(p);
+    setPlayerEpisode(`Tuning in · ${p.place}`);
+    const [found] = await Promise.all([resolveFeedAudio(p.url), flyTo(p.lat, p.lon, 2600)]);
+    if (document.getElementById("player").hidden) { radioBusy = false; return; } // closed mid-flight
+    if (!found) continue; // CORS or no audio: hop on
+    setPlayerEpisode(found.epTitle || "Latest episode");
+    showPlayerPlace(p); // the player replaces the place card: city line, linked to OSM
+    // IAB hygiene: preload="none" + src set only at the moment of playback
+    // means exactly one enclosure request per episode that really plays. If
+    // play() is refused, drop the src so no speculative media fetch lingers.
+    audio.src = found.audio;
+    try { await audio.play(); } catch (e) { audio.removeAttribute("src"); audio.load(); continue; }
+    played = true;
+    break;
+  }
+  if (!played && !$("player").hidden) { setPlayerInfo(null); setPlayerEpisode("Couldn't tune into anything · tap Next random to retry"); }
+  syncPlayBtn();
+  radioBusy = false;
+}
+
+function closePlayer() {
+  const audio = $("player-audio");
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+  $("player").hidden = true;
+  document.body.classList.remove("player-open");
+}
+
+$("random-btn").addEventListener("click", playRandom);
+$("player-next").addEventListener("click", playRandom);
+$("player-close").addEventListener("click", closePlayer);
+$("player-toggle").addEventListener("click", () => {
+  const a = $("player-audio");
+  if (!a.src) return;
+  if (a.paused) a.play().catch(() => {}); else a.pause();
+  syncPlayBtn();
+});
+$("player-audio").addEventListener("play", syncPlayBtn);
+$("player-audio").addEventListener("pause", syncPlayBtn);
+// Radio mode: when an episode ends, drift to the next random show.
+$("player-audio").addEventListener("ended", () => { if (!$("player").hidden && view === "globe") playRandom(); });
+
 // Bottom sheet: the tapped place's podcasts as ordinary list rows.
 function openSheet(cluster) {
   if (!cluster || !cluster.items) return;
@@ -1282,7 +1539,7 @@ if (window.visualViewport) {
     const top = document.querySelector("#globe-wrap .globe-top");
     const hint = $("globe-hint");
     const zoomed = vv.scale !== 1 || vv.offsetLeft || vv.offsetTop;
-    if (!zoomed) { top.style.transform = hint.style.transform = ""; $("globe-chips").style.transform = ""; return; }
+    if (!zoomed) { top.style.transform = hint.style.transform = ""; $("globe-chips").style.transform = ""; $("random-btn").style.transform = ""; return; }
     top.style.transformOrigin = "top left";
     top.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop}px) scale(${1 / vv.scale})`;
     // clientHeight is the layout viewport height, stable under pinch; the
@@ -1290,9 +1547,10 @@ if (window.visualViewport) {
     const dy = vv.offsetTop + vv.height - document.documentElement.clientHeight;
     hint.style.transformOrigin = "bottom left";
     hint.style.transform = `translate(${vv.offsetLeft}px, ${dy}px) scale(${1 / vv.scale})`;
-    const chips = $("globe-chips");
-    chips.style.transformOrigin = "bottom center";
-    chips.style.transform = `translateX(-50%) translate(${vv.offsetLeft}px, ${dy}px) scale(${1 / vv.scale})`;
+    for (const el of [$("globe-chips"), $("random-btn")]) {
+      el.style.transformOrigin = "bottom center";
+      el.style.transform = `translateX(-50%) translate(${vv.offsetLeft}px, ${dy}px) scale(${1 / vv.scale})`;
+    }
   };
   vv.addEventListener("resize", pinGlobeChrome);
   vv.addEventListener("scroll", pinGlobeChrome);
