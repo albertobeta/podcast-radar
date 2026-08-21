@@ -44,15 +44,23 @@
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 16px; }
 
   button.primary {
-    width: 100%; padding: 14px; font-size: 16px; font-weight: 600;
+    width: 100%; padding: 14px 16px; font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; gap: 12px; text-align: left;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: #fff; border: none; border-radius: 10px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(124, 92, 255, 0.35); /* elevation: reads as pressable, not as a banner */
   }
-  button.primary:active { filter: brightness(1.15); }
+  button.primary span { flex: 1; }
+  .loc-ico { width: 20px; height: 20px; fill: currentColor; flex-shrink: 0; }
+  .chev { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.85; }
+  button.primary:active { filter: brightness(1.15); transform: scale(0.985); }
   button.primary[disabled] { opacity: 0.6; }
   /* Field reports say the CTA wasn't obviously tappable: breathe until the
      first location attempt, then stay quiet. */
-  @keyframes cta-breathe { 0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.45); } 50% { box-shadow: 0 0 0 10px rgba(124, 92, 255, 0); } }
+  @keyframes cta-breathe {
+    0%, 100% { box-shadow: 0 4px 14px rgba(124, 92, 255, 0.35), 0 0 0 0 rgba(124, 92, 255, 0.45); }
+    50% { box-shadow: 0 4px 14px rgba(124, 92, 255, 0.35), 0 0 0 10px rgba(124, 92, 255, 0); }
+  }
   button.primary.attention { animation: cta-breathe 2.2s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { button.primary.attention { animation: none; } }
   .cta-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
@@ -229,8 +237,12 @@
   <div class="view-toggle primary"><span class="v active" data-v="list">Near me</span><span class="v" data-v="globe">Globe</span></div>
 
   <div class="card">
-    <button class="primary attention" id="locate-btn">📍 Find podcasts near me</button>
-    <div class="cta-hint" id="cta-hint">Tap to search around you</div>
+    <button class="primary attention" id="locate-btn">
+      <svg class="loc-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.7 2.3a1 1 0 0 0-1.05-.24l-18 7a1 1 0 0 0 .06 1.89l7.4 2.46 2.47 7.41a1 1 0 0 0 1.88.06l7-18a1 1 0 0 0-.24-1.05z"/></svg>
+      <span>Find podcasts near me</span>
+      <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="cta-hint" id="cta-hint">Your location never leaves your device · nothing is shared</div>
 
     <div class="radius-row">
       <label for="radius">Radius</label>
@@ -265,6 +277,7 @@
     <summary>About this app</summary>
     <p><strong>Your location never leaves your device.</strong> This is a static web app with no backend: your browser reads your location (or the coordinates you type) and runs the whole search · distance maths, sorting, rendering · locally. No coordinates are sent to any server, and there are no cookies or tracking scripts.</p>
     <p>Network traffic is one-way and minimal: the open <a href="https://podcastindex.org/datasets" target="_blank" rel="noopener">&lt;podcast:location&gt;</a> dataset is fetched from podcastindex.org and cached in your browser for 24 hours (see Data below), and cover images load directly from each podcast's own host. The globe view's 3D library and map outlines are served from this same site, not a CDN.</p>
+    <p>Some rows in the dataset name a place without coordinates (a bare "Springfield, USA" with no geo or OSM data). Those can't be plotted on a map or ranked by distance, so the counter above only includes podcasts the app can actually place.</p>
     <p>A search is written into the page address so you can bookmark or share it · just know the link carries the coordinates you searched from.</p>
   </details>
 
@@ -584,7 +597,9 @@ function setCenter(lat, lon, label) {
   runSearch();
 }
 
-$("locate-btn").addEventListener("click", () => {
+let locateAttempted = false; // one auto-prompt only: a denial must not re-prompt on every slider move
+function requestLocation() {
+  locateAttempted = true;
   $("locate-btn").classList.remove("attention"); // the CTA taught its lesson
   // Geolocation only exists in secure contexts; without this check an HTTP
   // LAN test would misreport the failure as "permission denied".
@@ -598,7 +613,8 @@ $("locate-btn").addEventListener("click", () => {
     err => geoFailed(err.code === 1 ? "Location permission denied." : "Couldn't get your location."),
     { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
   );
-});
+}
+$("locate-btn").addEventListener("click", requestLocation);
 
 function geoFailed(msg) {
   setStatus(`${msg} Type coordinates below instead.`, true);
@@ -638,6 +654,9 @@ $("radius").addEventListener("input", e => {
   radiusIdx = +e.target.value;
   $("radius-km").textContent = radiusLabel(radiusIdx);
   shown = RESULT_PAGE;
+  // Field reports: people drag the slider first and expect results. The
+  // first slider touch with no centre asks for location as the button would.
+  if (!center && !locateAttempted) { requestLocation(); return; }
   runSearch();
 });
 
@@ -1080,7 +1099,7 @@ function applyData(rows) {
   const n = normalize(rows);
   PLACES = n.places;
   STATS = n;
-  setStatus(`${n.withCoords} of ${n.total} located podcasts have usable coordinates.`);
+  setStatus(`${n.withCoords.toLocaleString("en-GB")} located podcasts ready to search.`);
   if (n.relSeen) {
     $("rel-chips").classList.remove("disabled");
     $("rel-chips").removeAttribute("title");
