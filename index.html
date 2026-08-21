@@ -257,9 +257,10 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
   }
-  .player-art { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--panel-2); flex-shrink: 0; }
+  .player-art-link { flex-shrink: 0; display: block; }
+  .player-art { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--panel-2); display: block; }
   .player-info { flex: 1; min-width: 0; }
-  .player-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-title { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); text-decoration: none; }
   /* Marquee: one animated track holding two copies of the text; shifting the
      track by half its width (= one copy) loops seamlessly. Only .scrolling
      (set when the text overflows) animates. */
@@ -401,9 +402,9 @@
 </div>
 
 <div class="player" id="player" hidden>
-  <img class="player-art" id="player-art" src="" alt="" width="44" height="44" decoding="async">
+  <a class="player-art-link" id="player-art-link" target="_blank" rel="noopener"><img class="player-art" id="player-art" src="" alt="" width="44" height="44" decoding="async"></a>
   <div class="player-info">
-    <div class="player-title" id="player-title"></div>
+    <a class="player-title" id="player-title" target="_blank" rel="noopener"></a>
     <div class="player-ep" id="player-ep"><div class="ep-track" id="player-ep-track"><span id="player-ep-text"></span><span id="player-ep-dup" aria-hidden="true"></span></div></div>
     <a class="player-place" id="player-place" target="_blank" rel="noopener" hidden></a>
   </div>
@@ -1405,6 +1406,12 @@ let placeToken = 0; // ignore a place lookup that lands after the next hop start
 function setPlayerInfo(p) {
   placeToken++;
   $("player-title").textContent = p ? p.title : "Random podcast";
+  // Art and title link to the show's Podcast Index page; an anchor without
+  // href (the failure state) renders as plain text.
+  for (const el of [$("player-art-link"), $("player-title")]) {
+    if (p) el.href = `https://podcastindex.org/podcast/${p.feedId}`;
+    else el.removeAttribute("href");
+  }
   $("player-place").hidden = true;
   const art = $("player-art");
   art.onerror = () => { art.onerror = null; art.src = DEFAULT_COVER; };
