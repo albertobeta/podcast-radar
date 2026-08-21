@@ -260,17 +260,18 @@
   .player-art-link { flex-shrink: 0; display: block; }
   .player-art { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--panel-2); display: block; }
   .player-info { flex: 1; min-width: 0; }
-  .player-title { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); text-decoration: none; }
+  .player-title { display: block; font-size: 13px; font-weight: 700; color: var(--text); text-decoration: none; }
+  .player-ep { font-size: 11px; color: var(--muted); margin-top: 4px; }
   /* Marquee: one animated track holding two copies of the text; shifting the
      track by half its width (= one copy) loops seamlessly. Only .scrolling
-     (set when the text overflows) animates. */
-  .player-ep { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; margin-top: 4px; }
-  .ep-track { display: inline-flex; }
-  .player-ep.scrolling span { padding-right: 48px; }
-  .player-ep.scrolling .ep-track { animation: player-marquee 14s linear infinite; }
+     (set when the text overflows) animates. Shared by title and episode. */
+  .marquee { white-space: nowrap; overflow: hidden; }
+  .mq-track { display: inline-flex; }
+  .marquee.scrolling span { padding-right: 48px; }
+  .marquee.scrolling .mq-track { animation: player-marquee 14s linear infinite; }
   @keyframes player-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  @media (prefers-reduced-motion: reduce) { .player-ep.scrolling .ep-track { animation: none; } }
-  .player-place { display: block; font-size: 11px; color: var(--muted); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  @media (prefers-reduced-motion: reduce) { .marquee.scrolling .mq-track { animation: none; } }
+  .player-place { display: block; font-size: 11px; color: var(--muted); text-decoration: none; margin-top: 4px; }
   .player-place b { color: var(--text); }
   .player-btn {
     width: 38px; height: 38px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
@@ -404,9 +405,9 @@
 <div class="player" id="player" hidden>
   <a class="player-art-link" id="player-art-link" target="_blank" rel="noopener"><img class="player-art" id="player-art" src="" alt="" width="44" height="44" decoding="async"></a>
   <div class="player-info">
-    <a class="player-title" id="player-title" target="_blank" rel="noopener"></a>
-    <div class="player-ep" id="player-ep"><div class="ep-track" id="player-ep-track"><span id="player-ep-text"></span><span id="player-ep-dup" aria-hidden="true"></span></div></div>
-    <a class="player-place" id="player-place" target="_blank" rel="noopener" hidden></a>
+    <a class="player-title marquee" id="player-title" target="_blank" rel="noopener"><div class="mq-track"><span></span><span aria-hidden="true"></span></div></a>
+    <div class="player-ep marquee" id="player-ep"><div class="mq-track"><span></span><span aria-hidden="true"></span></div></div>
+    <a class="player-place marquee" id="player-place" target="_blank" rel="noopener" hidden><div class="mq-track"><span></span><span aria-hidden="true"></span></div></a>
   </div>
   <button class="player-btn" id="player-toggle" aria-label="Play or pause">⏸</button>
   <button class="player-next" id="player-next" title="Play another random podcast">⏭ Random</button>
@@ -1405,7 +1406,7 @@ function flyTo(lat, lng, ms) {
 let placeToken = 0; // ignore a place lookup that lands after the next hop started
 function setPlayerInfo(p) {
   placeToken++;
-  $("player-title").textContent = p ? p.title : "Random podcast";
+  setMarquee("player-title", p ? p.title : "Random podcast");
   // Art and title link to the show's Podcast Index page; an anchor without
   // href (the failure state) renders as plain text.
   for (const el of [$("player-art-link"), $("player-title")]) {
@@ -1418,21 +1419,23 @@ function setPlayerInfo(p) {
   art.src = p && p.image ? p.image : DEFAULT_COVER;
 }
 
-// The episode line marquees right-to-left, but only when it overflows: two
-// copies of the text on one track, shifted by one copy's width per loop.
-// Measured synchronously (offsetWidth forces layout), no frame callback to
-// silently never fire.
-function setPlayerEpisode(text) {
-  const box = $("player-ep"), track = $("player-ep-track"), a = $("player-ep-text"), b = $("player-ep-dup");
+// A line marquees right-to-left, but only when it overflows: two copies of
+// the text on one track, shifted by one copy's width per loop. Measured
+// synchronously (offsetWidth forces layout), no frame callback to silently
+// never fire.
+function setMarquee(id, content, asHTML = false) {
+  const box = $(id), track = box.firstElementChild, [a, b] = track.children;
+  const set = (el, v) => { if (asHTML) el.innerHTML = v; else el.textContent = v; };
   box.classList.remove("scrolling");
-  a.textContent = text || "";
-  b.textContent = "";
-  if (text && box.clientWidth > 0 && a.offsetWidth > box.clientWidth) { // 0 = hidden tab, no real measurement
-    b.textContent = text;
+  set(a, content || "");
+  set(b, "");
+  if (content && box.clientWidth > 0 && a.offsetWidth > box.clientWidth) { // 0 = hidden tab, no real measurement
+    set(b, content);
     track.style.animationDuration = `${Math.max(9, Math.round(a.offsetWidth / 28))}s`; // constant reading speed
     box.classList.add("scrolling");
   }
 }
+const setPlayerEpisode = text => setMarquee("player-ep", text);
 
 function showPlayerPlace(p) {
   const myToken = placeToken;
@@ -1440,8 +1443,8 @@ function showPlayerPlace(p) {
     if (placeToken !== myToken || $("player").hidden) return; // already hopped on
     const ph = $("player-place");
     ph.href = osmLink(p);
-    ph.innerHTML = r && r.name ? placeHTML(r) : `📍 ${escapeHTML(p.place)}`;
-    ph.hidden = false;
+    ph.hidden = false; // unhide before measuring: a hidden box has no width
+    setMarquee("player-place", r && r.name ? placeHTML(r) : `📍 ${escapeHTML(p.place)}`, true);
   });
 }
 
